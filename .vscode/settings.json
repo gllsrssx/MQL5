@@ -1,0 +1,11 @@
+{
+    "C_Cpp.default.forcedInclude": [
+        "c:\\Users\\gilles\\.vscode\\extensions\\l-i-v.mql-tools-2.1.0\\data\\mql5_en.mqh"
+    ],
+    "files.associations": {
+        "*.ejs": "html",
+        "*.mqh": "cpp",
+        "*.mq5": "cpp"
+    },
+    "C_Cpp.errorSquiggles": "disabled"
+}
