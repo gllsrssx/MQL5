@@ -1,124 +1,170 @@
+
+#property copyright "Copyright 2023, MetaQuotes Ltd."
+#property link "https://www.mql5.com"
+#property version "1.00"
+
 #include <Trade\Trade.mqh>
 CTrade trade;
 
-// Input parameters
-input double risk = 0.01;                          // Risk percentage
-input int inpPeriod = 120;                          // EMA period
-ENUM_TIMEFRAMES timeFrame = PERIOD_CURRENT;        // Time frame for EMA
+// Define the indicator and input parameters
+input group "========= Risk settings =========";
+input double riskPercent = 0.1;     // risk percent
+input bool takeBuys = true;         // take buys
+input bool takeSells = true;        // take sells
+input group "========= MA settings =========";
+input int maPeriod = 200;             // ma period
+input int maDivider = 4;            // ma divider
 
-// Global variables
-double close[], ema[];
-int trendEMA = 0;
+double currentPrice;
+double bid, ask, spread;
 
-// Initialization function
+int barsTotal;
+
+// Define handles
+int maHandle;
+
+int maDirection = 0;
+int lastMaDirection = 0;
+int periodSinceLastDirectionChange = 0;
+datetime previousTime = TimeCurrent();
+
+
+int symbolPosCount = 0;
+
+// Define the OnInit function
 int OnInit()
 {
+    barsTotal = iBars(Symbol(), PERIOD_CURRENT);
+
+    if (maPeriod > 0)
+        maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, MODE_EMA, PRICE_OPEN);
+
     return (INIT_SUCCEEDED);
 }
 
-// Main function called on every tick
+// Define the OnDeinit function, make it delete all objects created by the indicator and close all orders
+void OnDeinit(const int reason)
+{
+
+    for (int j = 0; j < OrdersTotal(); j++)
+    {
+        if (OrderGetTicket(j))
+        {
+            trade.OrderDelete(OrderGetTicket(j));
+        }
+    }
+}
+
+// Define the OnTick function
 void OnTick()
 {
-    // Update market and calculate EMA
-    UpdateMarketInfo();
-    CalculateEMA(inpPeriod);
+    bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
+    ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
+    currentPrice = NormalizeDouble((ask + bid) / 2, Digits());
+    spread = NormalizeDouble(MathAbs(ask - bid), Digits());
 
-    // Determine the trend
-    trendEMA = TrendEMA();
+    Ema();
 
-    // Execute trades based on trend
-    ExecuteTrades();
+    if (maDirection > 0 &&  PositionsTotal() == 0 && takeBuys)
+    {
+        trade.Buy(riskPercent);
+    }
 
-    // Display useful information
-    DisplayComment();
+    if(maDirection < 0 && PositionsTotal() == 0 && takeSells)
+    {
+        trade.Sell(riskPercent);
+    }
+
+    if (maDirection == 0)
+    {
+        CloseThisSymbolAll();
+    }
+
 }
 
-// Function to calculate EMA
-void CalculateEMA(int period)
+
+void Ema()
 {
-    int copied = CopyClose(Symbol(), timeFrame, 0, period, close);
-    if(copied <= 0) return;
-    
-    ArrayResize(ema, copied);
-    for (int i = 0; i < copied; i++)
+    int bars = iBars(Symbol(), PERIOD_CURRENT);
+
+    if (barsTotal < bars)
     {
-        ema[i] = i > 0 ? ema[i - 1] + 2.0 / (1.0 + period) * (close[i] - ema[i - 1]) : close[i];
+        barsTotal = bars;
+
+        double ma[];
+        ArraySetAsSeries(ma, true);
+        CopyBuffer(maHandle, MAIN_LINE, 0, barsTotal, ma);
+
+        int newMaDirection = 0;
+        if (currentPrice > ma[0])
+            newMaDirection = 1;
+        else if (currentPrice < ma[0])
+            newMaDirection = -1;
+        else
+            newMaDirection = 0;
+
+        if (newMaDirection != lastMaDirection)
+        {
+            periodSinceLastDirectionChange = 1;
+            lastMaDirection = newMaDirection;
+        }
+        else
+        {
+            periodSinceLastDirectionChange++;
+        }
+
+        int changePeriod = (int)MathRound(maPeriod / maDivider);
+        if (periodSinceLastDirectionChange >= changePeriod)
+        {
+            maDirection = newMaDirection;
+        }
+        else
+        {
+            maDirection = 0;
+        }
+
+        ObjectCreate(0, "Ma " + (string) previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
+        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_STYLE, STYLE_SOLID);
+        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_WIDTH, 2);
+        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
+                                                                                                              : clrYellow);
+
+        previousTime = TimeCurrent();
     }
 }
 
-// Function to determine the trend based on EMA
-int TrendEMA()
-{
-    if (inpPeriod == 0) return 0;
-    if (ArraySize(close) < inpPeriod) return 0;
+void CloseThisSymbolAll()
+  {
+   int positions,orders;
+   ulong inpMagic = 0;
+   ulong ticket = PositionGetInteger(POSITION_TICKET);
+   int orderType = (int)PositionGetInteger(POSITION_TYPE) ;
+   int orderPendingType = (int)OrderGetInteger(ORDER_TYPE);
+   string orderSymbol = PositionGetString(POSITION_SYMBOL);
+   string orderPendingSymbol = OrderGetString(ORDER_SYMBOL);
+   ulong orderPendingTicket = OrderGetInteger(ORDER_TICKET);
+   ulong orderMagicNumber = PositionGetInteger(POSITION_MAGIC);
+   ulong orderPendingMagicNumber = OrderGetInteger(ORDER_MAGIC);
 
-    bool isBull = close[ArraySize(close) - 1] > ema[ArraySize(ema) - 1];
-    bool isBear = close[ArraySize(close) - 1] < ema[ArraySize(ema) - 1];
+   for(orders=OrdersTotal()-1, positions=PositionsTotal()-1; positions>=0 || orders>=0;positions--,orders--)
+     {
+      ulong numTicket = PositionGetTicket(positions);
+      ulong numOrderTicket = OrderGetTicket(orders);
 
-    if (isBull) return 1;   // Bull trend
-    if (isBear) return -1;  // Bear trend
-    return 0;               // Ranging
-}
+         if(orderType==POSITION_TYPE_BUY)
+            {
+            trade.PositionClose(numTicket);
+            }
+         if(orderType==POSITION_TYPE_SELL)
+            {
+            trade.PositionClose(numTicket);
+            }
+         if(orderPendingType==ORDER_TYPE_BUY_LIMIT || orderPendingType==ORDER_TYPE_SELL_LIMIT ||
+         orderPendingType==ORDER_TYPE_BUY_STOP||orderPendingType==ORDER_TYPE_SELL_STOP
+         ||orderPendingType==ORDER_TYPE_BUY_STOP_LIMIT||orderPendingType==ORDER_TYPE_SELL_STOP_LIMIT)
+            {
+            trade.OrderDelete(numOrderTicket);
+            }
+        }
 
-// Function to execute trades based on trend
-void ExecuteTrades()
-{
-    switch(trendEMA)
-    {
-        case 1: // Bull trend
-            CloseAllSellOrders();
-            PlaceBuyOrder();
-            break;
-        case -1: // Bear trend
-            CloseAllBuyOrders();
-            PlaceSellOrder();
-            break;
-        default: // Ranging
-            CloseAllOrders();
-            break;
-    }
-}
-
-// Function to place a buy order
-void PlaceBuyOrder()
-{
-    //double lotSize = OptimumLotSize(risk, /* define stop loss points */);
-    trade.Buy(risk, Symbol());
-}
-
-// Function to place a sell order
-void PlaceSellOrder()
-{
-    //double lotSize = OptimumLotSize(risk, /* define stop loss points */);
-    trade.Sell(risk, Symbol());
-}
-
-// Function to close all orders
-void CloseAllOrders()
-{
-    // Close all open orders
-    for(int i = 0; i < PositionsTotal(); i++)
-    {
-       
-    }
-}
-
-// Function to calculate the optimal lot size
-double OptimumLotSize(double riskPercent, double stopPoints)
-{
-    // Calculate and return the optimum lot size
-    return 0.0;
-}
-
-// Function to update market info
-void UpdateMarketInfo()
-{
-    // Update market information like current price, spread, etc.
-}
-
-// Function to display information on the chart
-void DisplayComment()
-{
-    string commentText = "Trend: " + (trendEMA == 1 ? "Bull" : trendEMA == -1 ? "Bear" : "Ranging") + "\n";
-    Comment(commentText);
-}
+     }
