@@ -25,7 +25,7 @@ input bool            InpCloseSignal    = true;         // close trades by oppos
 // input bool            InpATRTP           = true;         // close trades by opposite signal
 // input int             InpATRTPMultiplier  = 2;           // ATR multiplier
 
-f
+
 int handleRSI;
 int handleMA;
 double bufferRSI[];
