@@ -12,14 +12,14 @@
 // Input parameters
 
 input group "========= General settings =========";
-input long InpMagicNumber = 123456;   // Magic number
-input double InpLots = 0.1;           // Lot size
-input int InpStopLoss = 100;          // Stop Loss in % of the range (0 = disabled)
-input int InpTakeProfit = 100;        // Take Profit in % of the range (0 = disabled)
+input long InpMagicNumber = 123456;    // Magic number
+input double InpLots = 0.01;           // Risk size
+input int InpStopLoss = 0;             // Stop Loss in % of the range (0 = disabled)
+input int InpTakeProfit = 0;           // Take Profit in % of the range (0 = disabled)
 
 input group "========= Range settings =========";
 input int InpRangeStart = 0;          // Range start time in minutes
-input int InpRangeDuration = 0;       // Range end time in minutes
+input int InpRangeDuration = 0;       // Range duration in minutes
 input int InpRangeClose = 0;          // Range close time in minutes (-1 = disabled)
 
 enum BREAKOUT_MODE_ENUM
@@ -27,7 +27,7 @@ enum BREAKOUT_MODE_ENUM
    ONE_SIGNAL,                        // One breakout per range
    TWO_SIGNALS                        // high and low breakout
 };
-input BREAKOUT_MODE_ENUM InpBreakoutMode = ONE_SIGNAL; // Breakout mode
+input BREAKOUT_MODE_ENUM InpBreakoutMode = TWO_SIGNALS; // Breakout mode
 
 input group "========= Day settings =========";
 input bool InpMonday = true;          // Range on Monday
@@ -260,7 +260,7 @@ void CheckBreakouts(){
 
 
             // open buy position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, InpLots, lastTick.ask, sl, tp, "Time range ea");
+            trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl==0? InpLots: Volume(MathAbs(lastTick.ask-sl)), lastTick.ask, sl, tp, "Time range ea");
         }
 
         // check for low breakout
@@ -275,7 +275,7 @@ void CheckBreakouts(){
 
 
             // open sell position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, InpLots, lastTick.bid, sl, tp, "Time range ea");
+            trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl==0? InpLots: Volume(MathAbs(sl-lastTick.bid)), lastTick.bid, sl, tp, "Time range ea");
         }
     }
 }
@@ -331,7 +331,7 @@ void DrawObjects(){
     if (range.close_time > 0){
         ObjectCreate(NULL, "range close", OBJ_VLINE, 0, range.close_time, 0);
         ObjectSetString(NULL, "range close", OBJPROP_TOOLTIP, "close of the range \n" + TimeToString(range.close_time, TIME_DATE|TIME_MINUTES));
-        ObjectSetInteger(NULL, "range close", OBJPROP_COLOR, clrBlue);
+        ObjectSetInteger(NULL, "range close", OBJPROP_COLOR, clrRed);
         ObjectSetInteger(NULL, "range close", OBJPROP_WIDTH, 2);
         ObjectSetInteger(NULL, "range close", OBJPROP_BACK, true);
     }
@@ -348,7 +348,7 @@ void DrawObjects(){
         ObjectCreate(NULL, "range high ", OBJ_TREND, 0, range.end_time, range.high, InpRangeClose >= 0 ? range.close_time : INT_MAX, range.high);
         ObjectSetString(NULL, "range hig h", OBJPROP_TOOLTIP, "high of the range \n" + DoubleToString(range.high, Digits()));
         ObjectSetInteger(NULL, "range high ", OBJPROP_COLOR, clrBlue);
-        ObjectSetInteger(NULL, "range high ", OBJPROP_WIDTH, 2);
+        ObjectSetInteger(NULL, "range high ", OBJPROP_STYLE, STYLE_DOT);
         ObjectSetInteger(NULL, "range high ", OBJPROP_BACK, true);
     }
 
@@ -364,10 +364,38 @@ void DrawObjects(){
         ObjectCreate(NULL, "range low ", OBJ_TREND, 0, range.end_time, range.low, InpRangeClose >= 0 ? range.close_time : INT_MAX, range.low);
         ObjectSetString(NULL, "range low ", OBJPROP_TOOLTIP, "low of the range \n" + DoubleToString(range.low, Digits()));
         ObjectSetInteger(NULL, "range low ", OBJPROP_COLOR, clrBlue);
-        ObjectSetInteger(NULL, "range low ", OBJPROP_WIDTH, 2);
+        ObjectSetInteger(NULL, "range low ", OBJPROP_STYLE, STYLE_DOT);
         ObjectSetInteger(NULL, "range low ", OBJPROP_BACK, true);
     }
 
     // refresh chart
     ChartRedraw();
+}
+
+double Volume(double distance)
+{
+    double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+    double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+    double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+
+    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpLots / 100;
+    double moneyLotStep = (distance / tickSize) * tickValue * lotStep;
+
+    double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
+
+    double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+    double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
+
+    if (lots < minVol)
+    {
+        Print(lots, " > Adjusted to minimum volume > ", minVol);
+        lots = minVol;
+    }
+    else if (lots > maxVol)
+    {
+        lots = maxVol;
+        Print(lots, " > Adjusted to minimum volume > ", maxVol);
+    }
+
+    return lots;
 }

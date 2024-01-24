@@ -8,12 +8,13 @@ CTrade trade;
 
 // Define the indicator and input parameters
 input group "========= Risk settings =========";
-input double riskPercent = 0.1;     // risk percent
-input bool takeBuys = true;         // take buys
-input bool takeSells = true;        // take sells
+input double riskPercent = 0.1;           // risk percent
+input bool takeBuys = true;               // take buys
+input bool takeSells = true;              // take sells
 input group "========= MA settings =========";
-input int maPeriod = 200;             // ma period
-input int maDivider = 4;            // ma divider
+input int maPeriod = 200;                 // ma period
+input int maDivider = 4;                  // ma divider
+input ENUM_MA_METHOD maMode = MODE_EMA;   // ma mode
 
 double currentPrice;
 double bid, ask, spread;
@@ -37,7 +38,7 @@ int OnInit()
     barsTotal = iBars(Symbol(), PERIOD_CURRENT);
 
     if (maPeriod > 0)
-        maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, MODE_EMA, PRICE_OPEN);
+        maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, maMode, PRICE_OPEN);
 
     return (INIT_SUCCEEDED);
 }
