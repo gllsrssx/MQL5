@@ -14,8 +14,10 @@
 input group "========= General settings =========";
 input long InpMagicNumber = 123456;    // Magic number
 input double InpLots = 0.01;           // Risk size
-input int InpStopLoss = 0;             // Stop Loss in % of the range (0 = disabled)
 input int InpTakeProfit = 0;           // Take Profit in % of the range (0 = disabled)
+input int InpStopLoss = 0;             // Stop Loss in % of the range (0 = disabled)
+input bool InpBreakEven = true;        // break even
+// input int InpPointsBreakEven = 300;    // points to trigger break even
 
 input group "========= Range settings =========";
 input int InpRangeStart = 0;          // Range start time in minutes
@@ -54,7 +56,11 @@ RANGE_STRUCT range;
 MqlTick prevTick, lastTick;
 CTrade trade;
 
+double slDistance;
+
 int OnInit(){
+
+    trade.SetExpertMagicNumber(InpMagicNumber);
 
     // check user inputs
     if(!CheckInputs()) return INIT_PARAMETERS_INCORRECT;
@@ -120,6 +126,9 @@ void OnTick(){
 
     // check for breakouts
     CheckBreakouts();
+    
+    // breakeven
+    BreakEven();
 }
 
 // check user inputs
@@ -255,9 +264,9 @@ void CheckBreakouts(){
 
             // calculate stop loss and take profit
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.bid - ((range.high - range.low) * InpStopLoss * 0.01), Digits());
-
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.bid + ((range.high - range.low) * InpTakeProfit * 0.01), Digits());
 
+            slDistance = MathAbs(lastTick.ask - sl);
 
             // open buy position
             trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl==0? InpLots: Volume(MathAbs(lastTick.ask-sl)), lastTick.ask, sl, tp, "Time range ea");
@@ -270,9 +279,9 @@ void CheckBreakouts(){
 
             // calculate stop loss and take profit
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.ask + ((range.high - range.low) * InpStopLoss * 0.01), Digits());
-
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.ask - ((range.high - range.low) * InpTakeProfit * 0.01), Digits());
 
+            slDistance = MathAbs(sl - lastTick.bid);
 
             // open sell position
             trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl==0? InpLots: Volume(MathAbs(sl-lastTick.bid)), lastTick.bid, sl, tp, "Time range ea");
@@ -398,4 +407,36 @@ double Volume(double distance)
     }
 
     return lots;
+}
+
+void BreakEven()
+{
+    if(!InpBreakEven) return;
+
+    int total = PositionsTotal();
+    for (int i = total-1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if(!PositionSelectByTicket(ticket)){Print("Failed to select position by ticket"); continue; ;}
+        long magic;
+        if(!PositionGetInteger(POSITION_MAGIC, magic)){Print("Failed to get position magic"); continue ;}
+        if(magic == InpMagicNumber)
+        {
+            long type;
+            double entry;
+            double takeProfit;
+            if(!PositionGetInteger(POSITION_TYPE, type)){Print("Failed to get position type"); continue ;}
+            if(!PositionGetDouble(POSITION_PRICE_OPEN, entry)){Print("Failed to get position entry price"); continue ;}
+            if(!PositionGetDouble(POSITION_TP, takeProfit)){Print("Failed to get position take profit"); continue ;}
+            if(type == ORDER_TYPE_BUY){
+                if(lastTick.bid > entry + slDistance){
+                    trade.PositionModify(ticket, entry, takeProfit);
+                }
+                else if(lastTick.ask < entry - slDistance){
+                    trade.PositionModify(ticket, entry, takeProfit);
+                }
+            }
+        }
+    }
+    return;
 }
