@@ -7,12 +7,8 @@ CTrade trade;
 
 input group "========= settings 1 =========";
 input long InpMagicNumber = 9000; // Magic number
-input double InpRisk = 5.0;      // Risk size
+input double InpRisk = 0.01;      // Risk size
 input int InpTradeDuration = 60;  // trade duration in minutes (0 = disabled)
-
-input group "========= settings 2 =========";
-input int InpATRMultiplier = 3;   // Stop Loss in points (0 = disabled)
-input bool InpBreakEven = true;
 
 input group "========= settings 2 =========";
 input int InpStopLoss = 0;   // Stop Loss in points (0 = disabled)
@@ -66,14 +62,25 @@ void OnTick()
 {
    if (IsNewBar(PERIOD_D1))
    {
-      datetime startTime = iTime(Symbol(), PERIOD_D1, 0);
-      datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
+      datetime startTime = iTime(Symbol(), PERIOD_MN1, 1);
+      datetime endTime = iTime(Symbol(), PERIOD_MN1, 0) + PeriodSeconds(PERIOD_MN1);
 
       CalendarValueHistory(calendarValues, startTime, endTime, NULL, NULL);
+      
+      for (int i = 0; i < ArraySize(calendarValues); i++)
+      {
+         MqlCalendarEvent event;
+         CalendarEventById(calendarValues[i].event_id, event);
+         MqlCalendarCountry country;
+         CalendarCountryById(event.country_id, country);
+         string print = (" currency: " + country.currency + " name: " + event.name + " impact: " + (calendarValues[i].impact_type == CALENDAR_IMPACT_POSITIVE ? "positive" : "negative") + " eventtime: " + (string)calendarValues[i].time + " triggertime: " + (string)TimeCurrent());
+
+         Print(print);
+      }
    }
 
    isNewsEvent();
-   //BreakEven();
+   BreakEven();
    ClosePositions();
 }
 
@@ -109,29 +116,24 @@ void isNewsEvent()
       if (values[i].impact_type != CALENDAR_IMPACT_NA && calendarValues[i].impact_type == CALENDAR_IMPACT_NA)
       {
          string msg = (" currency: " + country.currency + " name: " + event.name + " impact: " + (values[i].impact_type == CALENDAR_IMPACT_POSITIVE ? "positive" : "negative") + " eventtime: " + (string)values[i].time + " triggertime: " + (string)TimeCurrent());
-         string comment = (country.currency +(values[i].impact_type == CALENDAR_IMPACT_POSITIVE ? " + " : " - ")+event.name);
-         
+
          if (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN))
          {
 
             if (values[i].impact_type == CALENDAR_IMPACT_POSITIVE)
-               trade.Buy(lotSize, NULL, 0, 0, 0, comment);
+               trade.Buy(lotSize, NULL, 0, 0, 0, msg);
             else if (values[i].impact_type == CALENDAR_IMPACT_NEGATIVE)
-               trade.Sell(lotSize, NULL, 0, 0, 0, comment);
+               trade.Sell(lotSize, NULL, 0, 0, 0, msg);
          }
          else
          {
 
             if (values[i].impact_type == CALENDAR_IMPACT_POSITIVE)
-               trade.Sell(lotSize, NULL, 0, 0, 0, comment);
+               trade.Sell(lotSize, NULL, 0, 0, 0, msg);
             else if (values[i].impact_type == CALENDAR_IMPACT_NEGATIVE)
-               trade.Buy(lotSize, NULL, 0, 0, 0, comment);
+               trade.Buy(lotSize, NULL, 0, 0, 0, msg);
          }
-         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-         {
-         Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-         return;
-         }
+
          calendarValues[i] = values[i];
 
          Print(msg);
@@ -268,31 +270,26 @@ void BreakEven()
          Print("Failed to get position entry price");
          return;
       }
-      double stopLoss;
-      if (!PositionGetDouble(POSITION_SL, stopLoss))
+      double takeProfit;
+      if (!PositionGetDouble(POSITION_TP, takeProfit))
       {
          Print("Failed to get position take profit");
          return;
       }
-      if ( entryPrice != stopLoss){
-         trade.PositionModify(ticket, entryPrice, entryPrice);
-         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-         {
-            Print("Failed to modify position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-            return;
-         }
+      long type;
+      if (!PositionGetInteger(POSITION_TYPE, type))
+      {
+         Print("Failed to get position type");
+         continue;
+      }
+      if ((type == POSITION_TYPE_BUY && entryPrice + 10 * SymbolInfoDouble(Symbol(), SYMBOL_POINT) > takeProfit) || (type == POSITION_TYPE_SELL && entryPrice - 10 * SymbolInfoDouble(Symbol(), SYMBOL_POINT) < takeProfit))
+         trade.PositionModify(ticket, entryPrice, takeProfit);
+      if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
+      {
+         Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
+         return;
       }
    }
 
    return;
-}
-
-double AtrValue()
-{
-     double priceArray[];
-     int atrDef = iATR(Symbol(), PERIOD_CURRENT, 999);
-     ArraySetAsSeries(priceArray, true);
-     CopyBuffer(atrDef, 0, 0, 1, priceArray);
-     double atrValue = NormalizeDouble(priceArray[0], Digits());
-     return atrValue * InpATRMultiplier;
 }
