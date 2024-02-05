@@ -1,6 +1,6 @@
 #include <..\Experts\newsBT\newsDownloader.mqh>;
 
 void OnInit(){
-    //downloadCountryNews("US");
+    downloadCountryNews("US");
     downloadNews();
 }
