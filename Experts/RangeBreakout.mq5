@@ -20,9 +20,18 @@ input bool InpBreakEven = true;        // break even
 // input int InpPointsBreakEven = 300;    // points to trigger break even
 
 input group "========= Range settings =========";
-input int InpRangeStart = 0;          // Range start time in minutes
-input int InpRangeDuration = 0;       // Range duration in minutes
-input int InpRangeClose = 0;          // Range close time in minutes (-1 = disabled)
+enum BREAKOUT_PAIR_ENUM
+  {
+   OFF,
+   US,                       
+   EU                        
+};
+
+input BREAKOUT_PAIR_ENUM InpBreakoutPair = OFF; // time preset
+
+ int InpRangeStart      = 0;          // Range start time in minutes
+ int InpRangeDuration   = 0;       // Range duration in minutes
+ int InpRangeClose      = 0;          // Range close time in minutes (-1 = disabled)
 
 enum BREAKOUT_MODE_ENUM
   {
@@ -31,12 +40,12 @@ enum BREAKOUT_MODE_ENUM
 };
 input BREAKOUT_MODE_ENUM InpBreakoutMode = TWO_SIGNALS; // Breakout mode
 
-input group "========= Day settings =========";
-input bool InpMonday = true;          // Range on Monday
-input bool InpTuesday = true;         // Range on Tuesday
-input bool InpWednesday = true;       // Range on Wednesday
-input bool InpThursday = true;        // Range on Thursday
-input bool InpFriday = true;          // Range on Friday
+//input group "========= Day settings =========";
+ bool InpMonday = true;          // Range on Monday
+ bool InpTuesday = true;         // Range on Tuesday
+ bool InpWednesday = true;       // Range on Wednesday
+ bool InpThursday = true;        // Range on Thursday
+ bool InpFriday = true;          // Range on Friday
 
 struct RANGE_STRUCT
 {
@@ -59,7 +68,16 @@ CTrade trade;
 double slDistance;
 
 int OnInit(){
-
+   if(InpBreakoutPair == EU){
+      InpRangeStart    = 60* 1;
+      InpRangeDuration = 60* 6;
+      InpRangeClose    = 60* 13;
+     } else if(InpBreakoutPair == US){
+      InpRangeStart    = 60* 6;
+      InpRangeDuration = 60* 6;
+      InpRangeClose    = 60* 18;
+     }
+     
     trade.SetExpertMagicNumber(InpMagicNumber);
 
     // check user inputs
@@ -266,7 +284,7 @@ void CheckBreakouts(){
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.bid - ((range.high - range.low) * InpStopLoss * 0.01), Digits());
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.bid + ((range.high - range.low) * InpTakeProfit * 0.01), Digits());
 
-            slDistance = MathAbs(lastTick.ask - sl);
+            slDistance = NormalizeDouble(MathAbs(lastTick.ask - sl),Digits());
 
             // open buy position
             trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl==0? InpLots: Volume(MathAbs(lastTick.ask-sl)), lastTick.ask, sl, tp, "Time range ea");
@@ -281,7 +299,7 @@ void CheckBreakouts(){
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.ask + ((range.high - range.low) * InpStopLoss * 0.01), Digits());
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.ask - ((range.high - range.low) * InpTakeProfit * 0.01), Digits());
 
-            slDistance = MathAbs(sl - lastTick.bid);
+            slDistance = NormalizeDouble(MathAbs(sl - lastTick.bid),Digits());
 
             // open sell position
             trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl==0? InpLots: Volume(MathAbs(sl-lastTick.bid)), lastTick.bid, sl, tp, "Time range ea");
@@ -402,8 +420,8 @@ double Volume(double distance)
     }
     else if (lots > maxVol)
     {
-        lots = maxVol;
         Print(lots, " > Adjusted to minimum volume > ", maxVol);
+        lots = maxVol;
     }
 
     return lots;
@@ -411,7 +429,7 @@ double Volume(double distance)
 
 void BreakEven()
 {
-    if(!InpBreakEven) return;
+    if(!InpBreakEven && InpStopLoss != 0) return;
 
     int total = PositionsTotal();
     for (int i = total-1; i >= 0; i--)
@@ -420,22 +438,19 @@ void BreakEven()
         if(!PositionSelectByTicket(ticket)){Print("Failed to select position by ticket"); continue; ;}
         long magic;
         if(!PositionGetInteger(POSITION_MAGIC, magic)){Print("Failed to get position magic"); continue ;}
-        if(magic == InpMagicNumber)
-        {
-            long type;
-            double entry;
-            double takeProfit;
-            if(!PositionGetInteger(POSITION_TYPE, type)){Print("Failed to get position type"); continue ;}
-            if(!PositionGetDouble(POSITION_PRICE_OPEN, entry)){Print("Failed to get position entry price"); continue ;}
-            if(!PositionGetDouble(POSITION_TP, takeProfit)){Print("Failed to get position take profit"); continue ;}
-            if(type == ORDER_TYPE_BUY){
-                if(lastTick.bid > entry + slDistance){
-                    trade.PositionModify(ticket, entry, takeProfit);
-                }
-                else if(lastTick.ask < entry - slDistance){
-                    trade.PositionModify(ticket, entry, takeProfit);
-                }
-            }
+        if(magic != InpMagicNumber) continue;
+        long type;
+        double entry;
+        double stopLoss;
+        double takeProfit;
+        if(!PositionGetInteger(POSITION_TYPE, type)){Print("Failed to get position type"); continue ;}
+        if(!PositionGetDouble(POSITION_PRICE_OPEN, entry)){Print("Failed to get position entry price"); continue ;}
+        if(!PositionGetDouble(POSITION_SL, stopLoss)){Print("Failed to get position take profit"); continue ;}
+        if(!PositionGetDouble(POSITION_TP, takeProfit)){Print("Failed to get position take profit"); continue ;}
+        if(entry==stopLoss) continue;
+        
+        if(((long)type == (long)ORDER_TYPE_BUY && lastTick.bid > entry + slDistance) || ((long)type == (long)ORDER_TYPE_SELL && lastTick.ask < entry - slDistance)){
+         trade.PositionModify(ticket, entry, takeProfit);  
         }
     }
     return;
