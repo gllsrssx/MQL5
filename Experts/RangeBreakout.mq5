@@ -13,9 +13,9 @@
 
 input group "========= General settings =========";
 input long InpMagicNumber = 777;     // Magic number
-input double InpLots = 0.01;         // Risk size
+input double InpLots = 1.0;          // Risk size
 input int InpTakeProfit = 0;         // Take Profit in % of the range (0 = disabled)
-input int InpStopLoss = 0;           // Stop Loss in % of the range (0 = disabled)
+input int InpStopLoss = 100;         // Stop Loss in % of the range (0 = disabled)
 input int InpPercentBreakEven = 100; // sl% to break even (0 = disabled)
 input bool InpTakeLongs = true;      // long trades
 input bool InpTakeShorts = true;     // short trades
@@ -28,7 +28,7 @@ enum BREAKOUT_PAIR_ENUM
     EU
 };
 
-input BREAKOUT_PAIR_ENUM InpBreakoutPair = OFF; // time preset
+input BREAKOUT_PAIR_ENUM InpBreakoutPair = US; // time preset
 
 int InpRangeStart = 0;    // Range start time in minutes
 int InpRangeDuration = 0; // Range duration in minutes
@@ -55,7 +55,7 @@ struct RANGE_STRUCT
     datetime close_time;  // close of the range
     double high;          // high of the range
     double low;           // low of the range
-    bool f_entry;         // flah if we are in the range
+    bool f_entry;         // flag if we are in the range
     bool f_high_breakout; // flag if a high breakout occured
     bool f_low_breakout;  // flag if a low breakout occured
 
