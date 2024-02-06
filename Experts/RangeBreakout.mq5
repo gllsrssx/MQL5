@@ -12,12 +12,13 @@
 // Input parameters
 
 input group "========= General settings =========";
-input long InpMagicNumber = 123456; // Magic number
-input double InpLots = 0.01;        // Risk size
-input int InpTakeProfit = 0;        // Take Profit in % of the range (0 = disabled)
-input int InpStopLoss = 0;          // Stop Loss in % of the range (0 = disabled)
-input bool InpBreakEven = true;     // break even
-// input int InpPointsBreakEven = 300;    // points to trigger break even
+input long InpMagicNumber = 777;     // Magic number
+input double InpLots = 0.01;         // Risk size
+input int InpTakeProfit = 0;         // Take Profit in % of the range (0 = disabled)
+input int InpStopLoss = 0;           // Stop Loss in % of the range (0 = disabled)
+input int InpPercentBreakEven = 100; // sl% to break even (0 = disabled)
+input bool InpTakeLongs = true;      // long trades
+input bool InpTakeShorts = true;     // short trades
 
 input group "========= Range settings =========";
 enum BREAKOUT_PAIR_ENUM
@@ -311,7 +312,7 @@ void CheckBreakouts()
     if (lastTick.time >= range.end_time && range.end_time > 0 && range.f_entry)
     {
         // check for high breakout
-        if (!range.f_high_breakout && lastTick.ask >= range.high)
+        if (!range.f_high_breakout && lastTick.ask >= range.high && InpTakeLongs)
         {
             range.f_high_breakout = true;
             if (InpBreakoutMode == ONE_SIGNAL)
@@ -324,11 +325,11 @@ void CheckBreakouts()
             slDistance = NormalizeDouble(MathAbs(lastTick.ask - sl), Digits());
 
             // open buy position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(MathAbs(lastTick.ask - sl)), lastTick.ask, sl, tp, "Time range ea");
+            trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(), lastTick.ask, sl, tp, "Time range ea");
         }
 
         // check for low breakout
-        if (!range.f_low_breakout && lastTick.bid <= range.low)
+        if (!range.f_low_breakout && lastTick.bid <= range.low && InpTakeShorts)
         {
             range.f_low_breakout = true;
             if (InpBreakoutMode == ONE_SIGNAL)
@@ -341,7 +342,7 @@ void CheckBreakouts()
             slDistance = NormalizeDouble(MathAbs(sl - lastTick.bid), Digits());
 
             // open sell position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(MathAbs(sl - lastTick.bid)), lastTick.bid, sl, tp, "Time range ea");
+            trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(), lastTick.bid, sl, tp, "Time range ea");
         }
     }
 }
@@ -465,14 +466,14 @@ void DrawObjects()
     ChartRedraw();
 }
 
-double Volume(double distance)
+double Volume()
 {
     double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
     double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
     double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
 
     double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpLots / 100;
-    double moneyLotStep = (distance / tickSize) * tickValue * lotStep;
+    double moneyLotStep = (slDistance / tickSize) * tickValue * lotStep;
 
     double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
 
@@ -495,7 +496,7 @@ double Volume(double distance)
 
 void BreakEven()
 {
-    if (!InpBreakEven && InpStopLoss != 0)
+    if (InpPercentBreakEven == 0 && InpStopLoss == 0)
         return;
 
     int total = PositionsTotal();
@@ -543,7 +544,10 @@ void BreakEven()
         if (entry == stopLoss)
             continue;
 
-        if (((long)type == (long)ORDER_TYPE_BUY && lastTick.bid > entry + slDistance) || ((long)type == (long)ORDER_TYPE_SELL && lastTick.ask < entry - slDistance))
+        // calculate a new stop loss distance based on the InpPercentBreakEven percentage
+        double beDistance = NormalizeDouble(slDistance * InpPercentBreakEven / 100, Digits());
+
+        if (((long)type == (long)ORDER_TYPE_BUY && lastTick.bid > entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && lastTick.ask < entry - beDistance))
         {
             trade.PositionModify(ticket, entry, takeProfit);
         }
