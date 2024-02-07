@@ -297,7 +297,13 @@ int CountOpenPositions()
             Print("Failed to get position magic number");
             return -1;
         }
-        if (InpMagicNumber == magicNumber)
+        string symbol;
+        if (!PositionGetString(POSITION_SYMBOL, symbol))
+        {
+            Print("Failed to get position magic number");
+            return -1;
+        }
+        if (InpMagicNumber == magicNumber && symbol == Symbol())
             counter++;
     }
 
@@ -377,7 +383,13 @@ bool ClosePositions()
             Print("Failed to get position magic number");
             return false;
         }
-        if (InpMagicNumber == magicNumber)
+        string symbol;
+        if (!PositionGetString(POSITION_SYMBOL, symbol))
+        {
+            Print("Failed to get position magic number");
+            return false;
+        }
+        if (InpMagicNumber == magicNumber && symbol == Symbol())
         {
             trade.PositionClose(ticket);
             if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
@@ -517,6 +529,16 @@ void BreakEven()
         }
         if (magic != InpMagicNumber)
             continue;
+        
+        string symbol;
+        if (!PositionGetString(POSITION_SYMBOL, symbol))
+        {
+            Print("Failed to get position magic number");
+            continue;
+        }
+        if(symbol != Symbol())
+            continue;
+        if (InpMagicNumber != magic && symbol != Symbol()) continue;
         long type;
         double entry;
         double stopLoss;

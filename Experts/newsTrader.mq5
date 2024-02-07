@@ -5,56 +5,23 @@
 #include <Trade\Trade.mqh>
 CTrade trade;
 
-input group "========= settings 1 =========";
-input long InpMagicNumber = 9000; // Magic number
-input double InpRisk = 5.0;      // Risk size
-input int InpTradeDuration = 60;  // trade duration in minutes (0 = disabled)
+input group "========= General settings =========";
+input long InpMagicNumber = 9000;                  // Magic number
+input double InpRisk = 1.0;                        // Risk size
+input ENUM_TIMEFRAMES InpAtrTimeFrame = PERIOD_H1; // atr sl timeFrame
+input ENUM_TIMEFRAMES InpCloseTime = PERIOD_H4;    // Close time
 
-input group "========= settings 2 =========";
-input int InpATRMultiplier = 3;   // Stop Loss in points (0 = disabled)
-input bool InpBreakEven = true;
-
-input group "========= settings 2 =========";
-input int InpStopLoss = 0;   // Stop Loss in points (0 = disabled)
-input int InpTakeProfit = 0; // Take Profit in points (0 = disabled)
-
-input group "========= settings 3 =========";
+input group "========= Importance =========";
 input bool InpImportance_low = false;      // low
 input bool InpImportance_moderate = false; // moderate
 input bool InpImportance_high = true;      // high
 
-input group "========= settings 4 =========";
-input bool InpMonday = true;    // Range on Monday
-input bool InpTuesday = true;   // Range on Tuesday
-input bool InpWednesday = true; // Range on Wednesday
-input bool InpThursday = true;  // Range on Thursday
-input bool InpFriday = true;    // Range on Friday
-
-MqlCalendarValue calendarValues[];
-double lotSize = InpRisk;
+MqlCalendarValue hist[];
+MqlCalendarValue news[];
 
 int OnInit()
 {
    trade.SetExpertMagicNumber(InpMagicNumber);
-   Print(SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN), " / ", SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT));
-
-   static double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
-   static double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
-   if (InpRisk < minVol)
-   {
-      Print(InpRisk, " > Adjusted to minimum volume > ", minVol);
-      lotSize = minVol;
-   }
-   else if (InpRisk > maxVol)
-   {
-      lotSize = maxVol;
-      Print(InpRisk, " > Adjusted to minimum volume > ", maxVol);
-   }
-   else
-   {
-      Print("Risk: ", lotSize);
-   }
-
    return (INIT_SUCCEEDED);
 }
 
@@ -64,80 +31,11 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
+
    if (IsNewBar(PERIOD_D1))
-   {
-      datetime startTime = iTime(Symbol(), PERIOD_D1, 0);
-      datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
-
-      CalendarValueHistory(calendarValues, startTime, endTime, NULL, NULL);
-   }
-
-   isNewsEvent();
-   //BreakEven();
-   ClosePositions();
-}
-
-void isNewsEvent()
-{
-   MqlCalendarValue values[];
-
-   datetime startTime = iTime(Symbol(), PERIOD_D1, 0);
-   datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
-
-   CalendarValueHistory(values, startTime, endTime, NULL, NULL);
-
-   for (int i = 0; i < ArraySize(values); i++)
-   {
-
-      MqlCalendarEvent event;
-      CalendarEventById(values[i].event_id, event);
-
-      MqlCalendarCountry country;
-      CalendarCountryById(event.country_id, country);
-
-      if (country.currency != SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency != SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT))
-         continue;
-      if (event.importance == CALENDAR_IMPORTANCE_NONE)
-         continue;
-      if (event.importance == CALENDAR_IMPORTANCE_LOW && !InpImportance_low)
-         continue;
-      if (event.importance == CALENDAR_IMPORTANCE_MODERATE && !InpImportance_moderate)
-         continue;
-      if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
-         continue;
-
-      if (values[i].impact_type != CALENDAR_IMPACT_NA && calendarValues[i].impact_type == CALENDAR_IMPACT_NA)
-      {
-         string msg = (" currency: " + country.currency + " name: " + event.name + " impact: " + (values[i].impact_type == CALENDAR_IMPACT_POSITIVE ? "positive" : "negative") + " eventtime: " + (string)values[i].time + " triggertime: " + (string)TimeCurrent());
-         string comment = (country.currency +(values[i].impact_type == CALENDAR_IMPACT_POSITIVE ? " + " : " - ")+event.name);
-         
-         if (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN))
-         {
-
-            if (values[i].impact_type == CALENDAR_IMPACT_POSITIVE)
-               trade.Buy(lotSize, NULL, 0, 0, 0, comment);
-            else if (values[i].impact_type == CALENDAR_IMPACT_NEGATIVE)
-               trade.Sell(lotSize, NULL, 0, 0, 0, comment);
-         }
-         else
-         {
-
-            if (values[i].impact_type == CALENDAR_IMPACT_POSITIVE)
-               trade.Sell(lotSize, NULL, 0, 0, 0, comment);
-            else if (values[i].impact_type == CALENDAR_IMPACT_NEGATIVE)
-               trade.Buy(lotSize, NULL, 0, 0, 0, comment);
-         }
-         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-         {
-         Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-         return;
-         }
-         calendarValues[i] = values[i];
-
-         Print(msg);
-         Comment(msg);
-      }
-   }
+      GetCalendarValue(hist);
+   IsNewsEvent();
+   CheckTrades();
 }
 
 bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
@@ -152,76 +50,123 @@ bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
    return false;
 }
 
-// close trades after x minutes
-void ClosePositions()
+double AtrValue()
 {
-   if (InpTradeDuration == 0)
-      return;
-
-   // calculate maximum open time
-   datetime maxOpenTime = TimeCurrent() - InpTradeDuration * PeriodSeconds(PERIOD_M1);
-
-   int total = PositionsTotal();
-   for (int i = total - 1; i >= 0; i--)
-   {
-      if (total != PositionsTotal())
-      {
-         total = PositionsTotal();
-         i = total;
-         continue;
-      }
-      ulong ticket = PositionGetTicket(i); // select position
-      if (ticket <= 0)
-      {
-         Print("Failed to get position ticket");
-         return;
-      }
-      if (!PositionSelectByTicket(ticket))
-      {
-         Print("Failed to select position by ticket");
-         return;
-      }
-      long magicNumber;
-      if (!PositionGetInteger(POSITION_MAGIC, magicNumber))
-      {
-         Print("Failed to get position magic number");
-         return;
-      }
-      if (InpMagicNumber != magicNumber)
-         continue;
-
-      if (PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue;
-
-      datetime openTime;
-      if (!PositionGetInteger(POSITION_TIME, openTime))
-      {
-         Print("Failed to get position open time");
-         return;
-      }
-      if (openTime > maxOpenTime)
-         continue;
-
-      trade.PositionClose(ticket);
-      if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-      {
-         Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-         return;
-      }
-   }
-
-   return;
+   double priceArray[];
+   int atrDef = iATR(Symbol(), InpAtrTimeFrame, 999);
+   ArraySetAsSeries(priceArray, true);
+   CopyBuffer(atrDef, 0, 0, 1, priceArray);
+   double atrValue = NormalizeDouble(priceArray[0], Digits());
+   return atrValue;
 }
 
-// break even if trade is in profit after InpTradeDuration/2 minutes
-void BreakEven()
+double Volume()
 {
-   if (InpTradeDuration == 0)
+   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+
+   double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRisk / 100;
+   double moneyLotStep = (AtrValue() / tickSize) * tickValue * lotStep;
+
+   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
+
+   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+   double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
+
+   if (lots < minVol)
+   {
+      Print(lots, " > Adjusted to minimum volume > ", minVol);
+      lots = minVol;
+   }
+   else if (lots > maxVol)
+   {
+      Print(lots, " > Adjusted to minimum volume > ", maxVol);
+      lots = maxVol;
+   }
+
+   return lots;
+}
+
+void GetCalendarValue(MqlCalendarValue &values[])
+{
+   datetime startTime = iTime(Symbol(), PERIOD_D1, 0);
+   datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
+   ArrayFree(values);
+   CalendarValueHistory(values, startTime, endTime, NULL, NULL);
+}
+
+void IsNewsEvent()
+{
+   GetCalendarValue(news);
+   int amount = ArraySize(news);
+   if (amount != ArraySize(hist))
       return;
 
-   // calculate maximum open time
-   datetime maxOpenTime = TimeCurrent() - (int)MathRound(InpTradeDuration / 2) * PeriodSeconds(PERIOD_M1);
+   for (int i = amount - 1; i >= 0; i--)
+   {
 
+      MqlCalendarEvent event;
+      CalendarEventById(news[i].event_id, event);
+
+      MqlCalendarEvent histEvent;
+      CalendarEventById(hist[i].event_id, event);
+      if (event.id != histEvent.id)
+         return;
+
+      MqlCalendarCountry country;
+      CalendarCountryById(event.country_id, country);
+
+      if (event.importance == CALENDAR_IMPORTANCE_NONE)
+         continue;
+      if (event.importance == CALENDAR_IMPORTANCE_LOW && !InpImportance_low)
+         continue;
+      if (event.importance == CALENDAR_IMPORTANCE_MODERATE && !InpImportance_moderate)
+         continue;
+      if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
+         continue;
+
+      string currency = country.currency;
+      string margin = SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN);
+      string profit = SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT);
+      if (currency != margin && currency != profit)
+         continue;
+
+      ENUM_CALENDAR_EVENT_IMPACT newsImpact = news[i].impact_type;
+      ENUM_CALENDAR_EVENT_IMPACT histImpact = hist[i].impact_type;
+      if (!(newsImpact != CALENDAR_IMPACT_NA && histImpact == CALENDAR_IMPACT_NA))
+         continue;
+
+      string msg = (newsImpact == CALENDAR_IMPACT_POSITIVE ? "+" : "-") + currency + event.name;
+      bool isBuy = (currency == margin && newsImpact == CALENDAR_IMPACT_POSITIVE) ||
+                   (currency != margin && newsImpact == CALENDAR_IMPACT_NEGATIVE);
+      executeTrade(isBuy, msg);
+      hist[i] = news[i];
+   }
+}
+
+void executeTrade(bool isBuy, string msg)
+{
+   if (isBuy)
+   {
+      double stopLoss = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_ASK) - AtrValue(), Digits());
+      trade.Buy(Volume(), NULL, 0, stopLoss, 0, msg);
+   }
+   else
+   {
+      double stopLoss = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_BID) + AtrValue(), Digits());
+      trade.Sell(Volume(), NULL, 0, stopLoss, 0, msg);
+   }
+   if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
+   {
+      Print("Failed to open position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
+      return;
+   }
+   Print(msg);
+}
+
+void CheckTrades()
+{
    int total = PositionsTotal();
    for (int i = total - 1; i >= 0; i--)
    {
@@ -231,7 +176,7 @@ void BreakEven()
          i = total;
          continue;
       }
-      ulong ticket = PositionGetTicket(i); // select position
+      ulong ticket = PositionGetTicket(i);
       if (ticket <= 0)
       {
          Print("Failed to get position ticket");
@@ -250,49 +195,81 @@ void BreakEven()
       }
       if (InpMagicNumber != magicNumber)
          continue;
-
-      if (PositionGetString(POSITION_SYMBOL) != Symbol())
-         continue;
-
-      datetime openTime;
-      if (!PositionGetInteger(POSITION_TIME, openTime))
+      string symbol;
+      if (!PositionGetString(POSITION_SYMBOL, symbol))
       {
-         Print("Failed to get position open time");
+         Print("Failed to get position symbol");
          return;
       }
-      if (openTime > maxOpenTime)
+      if (symbol != Symbol())
          continue;
       double entryPrice;
       if (!PositionGetDouble(POSITION_PRICE_OPEN, entryPrice))
       {
-         Print("Failed to get position entry price");
+         Print("Failed to get position open price");
          return;
       }
       double stopLoss;
       if (!PositionGetDouble(POSITION_SL, stopLoss))
       {
+         Print("Failed to get position stop loss");
+         return;
+      }
+      double takeProfit;
+      if (!PositionGetDouble(POSITION_TP, takeProfit))
+      {
          Print("Failed to get position take profit");
          return;
       }
-      if ( entryPrice != stopLoss){
-         trade.PositionModify(ticket, entryPrice, entryPrice);
+      long positionType;
+      if (!PositionGetInteger(POSITION_TYPE, positionType))
+      {
+         Print("Failed to get position type");
+         return;
+      }
+      datetime openTime;
+      if (!PositionGetInteger(POSITION_TIME, openTime))
+      {
+         Print("Failed to get position open time");
+         return;
+      }
+
+      // check for close
+      if (TimeCurrent() > openTime + PeriodSeconds(InpCloseTime))
+      {
+         trade.PositionClose(ticket);
+         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
+         {
+            Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
+            return;
+         }
+         continue;
+      }
+
+      // check for be
+      if (entryPrice == stopLoss)
+         continue;
+
+      double bePrice = 0;
+      if (positionType == POSITION_TYPE_BUY)
+      {
+         bePrice = NormalizeDouble(entryPrice + MathAbs(entryPrice - stopLoss), Digits());
+      }
+      else if (positionType == POSITION_TYPE_SELL)
+      {
+         bePrice = NormalizeDouble(entryPrice - MathAbs(entryPrice - stopLoss), Digits());
+      }
+      if (bePrice == 0)
+         continue;
+      if ((positionType == POSITION_TYPE_BUY && SymbolInfoDouble(Symbol(), SYMBOL_BID) > bePrice) || (positionType == POSITION_TYPE_SELL && SymbolInfoDouble(Symbol(), SYMBOL_ASK) < bePrice))
+      {
+         trade.PositionModify(ticket, entryPrice, 0);
          if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
          {
             Print("Failed to modify position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
             return;
          }
+         continue;
       }
    }
-
-   return;
-}
-
-double AtrValue()
-{
-     double priceArray[];
-     int atrDef = iATR(Symbol(), PERIOD_CURRENT, 999);
-     ArraySetAsSeries(priceArray, true);
-     CopyBuffer(atrDef, 0, 0, 1, priceArray);
-     double atrValue = NormalizeDouble(priceArray[0], Digits());
-     return atrValue * InpATRMultiplier;
 }
