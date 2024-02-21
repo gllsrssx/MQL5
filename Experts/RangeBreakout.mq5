@@ -25,10 +25,14 @@ enum BREAKOUT_PAIR_ENUM
 {
     OFF,
     US,
-    EU
+    EU,
+    JP,
+    NY,
+    EURUSD,
+    US30
 };
 
-input BREAKOUT_PAIR_ENUM InpBreakoutPair = US; // time preset
+input BREAKOUT_PAIR_ENUM InpBreakoutPair = US30; // time preset
 
 int InpRangeStart = 0;    // Range start time in minutes
 int InpRangeDuration = 0; // Range duration in minutes
@@ -70,17 +74,41 @@ double slDistance;
 
 int OnInit()
 {
-    if (InpBreakoutPair == EU)
-    {
-        InpRangeStart = 60 * 1;
-        InpRangeDuration = 60 * 6;
-        InpRangeClose = 60 * 13;
-    }
-    else if (InpBreakoutPair == US)
+    if (InpBreakoutPair == US)
     {
         InpRangeStart = 60 * 6;
         InpRangeDuration = 60 * 6;
         InpRangeClose = 60 * 18;
+    }
+    else if (InpBreakoutPair == EU)
+    {
+        InpRangeStart = 60 * 2;
+        InpRangeDuration = 60 * 5;
+        InpRangeClose = 60 * 20;
+    }
+    else if (InpBreakoutPair == JP)
+    {
+        InpRangeStart = 60 * 2;
+        InpRangeDuration = 60 * 7;
+        InpRangeClose = 60 * 15;
+    }
+    else if (InpBreakoutPair == NY)
+    {
+        InpRangeStart = 60 * 10;
+        InpRangeDuration = 60 * 15;
+        InpRangeClose = 60 * 19;
+    }
+    else if (InpBreakoutPair == EURUSD)
+    {
+        InpRangeStart = 60;
+        InpRangeDuration = 600;
+        InpRangeClose = 1020;
+    }
+    else if (InpBreakoutPair == US30)
+    {
+        InpRangeStart = 600;
+        InpRangeDuration = 60;
+        InpRangeClose = 960;
     }
 
     trade.SetExpertMagicNumber(InpMagicNumber);
@@ -563,9 +591,10 @@ void BreakEven()
             Print("Failed to get position take profit");
             continue;
         }
-        if (entry == stopLoss)
-            continue;
 
+        if (((long)type == (long)ORDER_TYPE_BUY && stopLoss >= entry) || ((long)type == (long)ORDER_TYPE_SELL && stopLoss <= entry))
+            continue;
+            
         // calculate a new stop loss distance based on the InpPercentBreakEven percentage
         double beDistance = NormalizeDouble(slDistance * InpPercentBreakEven / 100, Digits());
 

@@ -12,12 +12,12 @@ CTrade trade;
 
 // Define the indicator and input parameters
 input group "========= Risk settings =========";
-input double riskPercent = 0.1;
-input bool trailGrid = true; // Flag to enable trailing stop loss
+input double riskPercent = 0.01;
+input bool trailGrid = false; // Flag to enable trailing stop loss
 input int maxGridAway = 0;   // close X away
 input group "========= Grid settings =========";
 input int AtrPeriod = 999;       // atr grid size
-input double gridMultiplier = 2; // grid size multiplier
+input double gridMultiplier = 1; // grid size multiplier
 input bool takeBuys = true;      // take buys
 input bool takeSells = true;     // take sells
 input group "========= MA settings =========";
@@ -442,10 +442,10 @@ void Ema()
             maDirection = 0;
         }
 
-        ObjectCreate(0, "Ma " + previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
-        ObjectSetInteger(0, "Ma " + previousTime, OBJPROP_STYLE, STYLE_SOLID);
-        ObjectSetInteger(0, "Ma " + previousTime, OBJPROP_WIDTH, 2);
-        ObjectSetInteger(0, "Ma " + previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
+        ObjectCreate(0, "Ma " + (string)previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_STYLE, STYLE_SOLID);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_WIDTH, 2);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
                                                                                                               : clrYellow);
 
         previousTime = TimeCurrent();

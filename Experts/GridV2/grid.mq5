@@ -3,10 +3,10 @@ CTrade trade;
 
 // input parameters
 input double risk = 0.01;                          // risk
-int inpPeriod = 120;                         // EMA period
-int gridLength = 480;                       // grid period
-ENUM_TIMEFRAMES timeFrame = PERIOD_CURRENT;       // grid time frame
-bool plot = false;                           //plot levels
+input int inpPeriod = 0;                         // EMA period
+input int gridLength = 999;                       // grid period
+input ENUM_TIMEFRAMES timeFrame = PERIOD_H1;       // grid time frame
+input bool plot = false;                           //plot levels
 
 // global variables
 double bid, ask, spread, currentPrice, gridSize, gridLevels[8], close[], ema[],lastOpen;
