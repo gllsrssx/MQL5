@@ -220,7 +220,7 @@ void IsNewsEvent()
          margin = "USD";
          profit = "JPY";
       }
-      else if (currency == "XAU")
+      else if (currency == "USD")
       {
          symbol = "XAUUSD";
          margin = "XAU";
