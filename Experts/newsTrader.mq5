@@ -6,13 +6,12 @@
 CTrade trade;
 
 input group "========= General settings =========";
-input long InpMagicNumber = 888; // Magic
-// input bool tradeUSD = false;      // USD news
+input long InpMagicNumber = 888;                // Magic
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // timeFrame
 
-// input group "========= Risk settings =========";
+input group "========= Risk settings =========";
 enum RISK_MODE_ENUM
 {
-   // 5 levels of risk
    RISK_MODE_1, // Safe
    RISK_MODE_2, // Low
    RISK_MODE_3, // Moderate
@@ -21,20 +20,17 @@ enum RISK_MODE_ENUM
 };
 input RISK_MODE_ENUM InpRiskMode = RISK_MODE_3; // Risk
 double InpRisk;
-// trailing stop percentage, 0 = disabled
 
 enum TRAILING_STOP_MODE_ENUM
 {
-   // off, 25%, 50%, 75%, 100%
    TRAILING_STOP_MODE_0,   // Off
    TRAILING_STOP_MODE_25,  // 25%
    TRAILING_STOP_MODE_50,  // 50%
    TRAILING_STOP_MODE_75,  // 75%
    TRAILING_STOP_MODE_100, // 100%
 };
-input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_0; // Trail
-double InpTrailingStop = 0;                                               // Trail
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1;                           // timeFrame
+input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_100; // Trail
+double InpTrailingStop = 0;
 
 input group "========= Importance =========";
 input bool InpImportance_low = false;     // low
@@ -67,16 +63,18 @@ int OnInit()
       InpTrailingStop = 75;
    else if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_100)
       InpTrailingStop = 100;
-
    InpTrailingStop = InpTrailingStop / 100;
 
+   Print(AtrValue("AUDUSD"), " ", AtrValue("EURUSD"), " ", AtrValue("GBPUSD"), " ", AtrValue("USDCAD"), " ", AtrValue("USDCHF"), " ", AtrValue("USDJPY"), " ", AtrValue("XAUUSD"));
+   Print(Volume("AUDUSD"), " ", Volume("EURUSD"), " ", Volume("GBPUSD"), " ", Volume("USDCAD"), " ", Volume("USDCHF"), " ", Volume("USDJPY"), " ", Volume("XAUUSD"));
+
    trade.SetExpertMagicNumber(InpMagicNumber);
-   Comment(Volume("AUDUSD"), "\n", Volume("EURUSD"), "\n", Volume("GBPUSD"), "\n", Volume("USDCAD"), "\n", Volume("USDCHF"), "\n", Volume("USDJPY"), "\n", Volume("XAUUSD"));
    return (INIT_SUCCEEDED);
 }
 
 void OnDeinit(const int reason)
 {
+   Comment("");
 }
 
 void OnTick()
@@ -84,7 +82,8 @@ void OnTick()
    if (IsNewBar(PERIOD_D1))
    {
       GetCalendarValue(hist);
-      Comment(Volume("AUDUSD"), "\n", Volume("EURUSD"), "\n", Volume("GBPUSD"), "\n", Volume("USDCAD"), "\n", Volume("USDCHF"), "\n", Volume("USDJPY"), "\n", Volume("XAUUSD"));
+      Print(AtrValue("AUDUSD"), " ", AtrValue("EURUSD"), " ", AtrValue("GBPUSD"), " ", AtrValue("USDCAD"), " ", AtrValue("USDCHF"), " ", AtrValue("USDJPY"), " ", AtrValue("XAUUSD"));
+      Print(Volume("AUDUSD"), " ", Volume("EURUSD"), " ", Volume("GBPUSD"), " ", Volume("USDCAD"), " ", Volume("USDCHF"), " ", Volume("USDJPY"), " ", Volume("XAUUSD"));
    }
    IsNewsEvent();
    CheckTrades();
@@ -92,11 +91,11 @@ void OnTick()
 
 bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
 {
-   static datetime previousTime = 0;
-   datetime currentTime = iTime(Symbol(), timeFrame, 0);
-   if (previousTime != currentTime)
+   static int barsTotal;
+   int bars = iBars(Symbol(), timeFrame);
+   if (barsTotal != bars)
    {
-      previousTime = currentTime;
+      barsTotal = bars;
       return true;
    }
    return false;
@@ -145,8 +144,8 @@ double Volume(string symbol, int volDivider = 1)
 
 void GetCalendarValue(MqlCalendarValue &values[])
 {
-   datetime startTime = iTime(Symbol(), PERIOD_D1, 0);
-   datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
+   datetime startTime = iTime(Symbol(), PERIOD_W1, 0);
+   datetime endTime = startTime + PeriodSeconds(PERIOD_W1);
    ArrayFree(values);
    CalendarValueHistory(values, startTime, endTime, NULL, NULL);
 }
@@ -239,6 +238,9 @@ void IsNewsEvent()
       bool isBuy = (currency == margin && newsImpact == CALENDAR_IMPACT_POSITIVE) ||
                    (currency != margin && newsImpact == CALENDAR_IMPACT_NEGATIVE);
 
+      if (news[i].actual_value == news[i].forecast_value)
+         continue;
+
       if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
          executeTrade(symbol, isBuy, msg, 2);
       else
@@ -276,7 +278,6 @@ void CheckTrades()
    CheckTrail();
 }
 
-// function check for close
 void CheckClose()
 {
    int total = PositionsTotal();
