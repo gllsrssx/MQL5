@@ -6,22 +6,72 @@
 CTrade trade;
 
 input group "========= General settings =========";
-input long InpMagicNumber = 9000;                  // Magic number
-input double InpRisk = 1.0;                        // Risk size
-input ENUM_TIMEFRAMES InpAtrTimeFrame = PERIOD_H1; // atr sl timeFrame
-input ENUM_TIMEFRAMES InpCloseTime = PERIOD_H4;    // Close time
+input long InpMagicNumber = 888; // Magic
+// input bool tradeUSD = false;      // USD news
+
+// input group "========= Risk settings =========";
+enum RISK_MODE_ENUM
+{
+   // 5 levels of risk
+   RISK_MODE_1, // Safe
+   RISK_MODE_2, // Low
+   RISK_MODE_3, // Moderate
+   RISK_MODE_4, // High
+   RISK_MODE_5, // Extreme
+};
+input RISK_MODE_ENUM InpRiskMode = RISK_MODE_3; // Risk
+double InpRisk;
+// trailing stop percentage, 0 = disabled
+
+enum TRAILING_STOP_MODE_ENUM
+{
+   // off, 25%, 50%, 75%, 100%
+   TRAILING_STOP_MODE_0,   // Off
+   TRAILING_STOP_MODE_25,  // 25%
+   TRAILING_STOP_MODE_50,  // 50%
+   TRAILING_STOP_MODE_75,  // 75%
+   TRAILING_STOP_MODE_100, // 100%
+};
+input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_0; // Trail
+double InpTrailingStop = 0;                                               // Trail
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1;                           // timeFrame
 
 input group "========= Importance =========";
-input bool InpImportance_low = false;      // low
-input bool InpImportance_moderate = false; // moderate
-input bool InpImportance_high = true;      // high
+input bool InpImportance_low = false;     // low
+input bool InpImportance_moderate = true; // moderate
+input bool InpImportance_high = true;     // high
 
 MqlCalendarValue hist[];
 MqlCalendarValue news[];
 
 int OnInit()
 {
+   if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_1)
+      InpRisk = 0.1;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_2)
+      InpRisk = 0.5;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_3)
+      InpRisk = 1;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_4)
+      InpRisk = 2.5;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_5)
+      InpRisk = 5;
+
+   if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_0)
+      InpTrailingStop = 0;
+   else if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_25)
+      InpTrailingStop = 25;
+   else if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_50)
+      InpTrailingStop = 50;
+   else if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_75)
+      InpTrailingStop = 75;
+   else if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_100)
+      InpTrailingStop = 100;
+
+   InpTrailingStop = InpTrailingStop / 100;
+
    trade.SetExpertMagicNumber(InpMagicNumber);
+   Comment(Volume("AUDUSD"), "\n", Volume("EURUSD"), "\n", Volume("GBPUSD"), "\n", Volume("USDCAD"), "\n", Volume("USDCHF"), "\n", Volume("USDJPY"), "\n", Volume("XAUUSD"));
    return (INIT_SUCCEEDED);
 }
 
@@ -31,9 +81,11 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
-
    if (IsNewBar(PERIOD_D1))
+   {
       GetCalendarValue(hist);
+      Comment(Volume("AUDUSD"), "\n", Volume("EURUSD"), "\n", Volume("GBPUSD"), "\n", Volume("USDCAD"), "\n", Volume("USDCHF"), "\n", Volume("USDJPY"), "\n", Volume("XAUUSD"));
+   }
    IsNewsEvent();
    CheckTrades();
 }
@@ -50,38 +102,41 @@ bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
    return false;
 }
 
-double AtrValue()
+double AtrValue(string symbol)
 {
+   int atrHandle;
+   atrHandle = iATR(symbol, InpTimeFrame, 999);
    double priceArray[];
-   int atrDef = iATR(Symbol(), InpAtrTimeFrame, 999);
    ArraySetAsSeries(priceArray, true);
-   CopyBuffer(atrDef, 0, 0, 1, priceArray);
-   double atrValue = NormalizeDouble(priceArray[0], Digits());
+   CopyBuffer(atrHandle, 0, 0, 1, priceArray);
+   double atrValue = priceArray[0];
    return atrValue;
 }
 
-double Volume()
+double Volume(string symbol, int volDivider = 1)
 {
-   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
-   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
-   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+   double atr = AtrValue(symbol);
 
-   double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRisk / 100;
-   double moneyLotStep = (AtrValue() / tickSize) * tickValue * lotStep;
+   double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+   double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+   double lotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
+
+   double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRisk / volDivider / 100;
+   double moneyLotStep = (atr / tickSize) * tickValue * lotStep;
 
    double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
 
-   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
-   double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
+   double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+   double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
 
    if (lots < minVol)
    {
-      Print(lots, " > Adjusted to minimum volume > ", minVol);
+      Print(lots, " > Adjusted to minimum volume > ", minVol, " Atr: ", atr);
       lots = minVol;
    }
    else if (lots > maxVol)
    {
-      Print(lots, " > Adjusted to minimum volume > ", maxVol);
+      Print(lots, " > Adjusted to maximum volume > ", maxVol, " Atr: ", atr);
       lots = maxVol;
    }
 
@@ -112,10 +167,11 @@ void IsNewsEvent()
       MqlCalendarEvent histEvent;
       CalendarEventById(hist[i].event_id, event);
       if (event.id != histEvent.id)
-         return;
+         continue;
 
       MqlCalendarCountry country;
       CalendarCountryById(event.country_id, country);
+      string currency = country.currency;
 
       if (event.importance == CALENDAR_IMPORTANCE_NONE)
          continue;
@@ -126,46 +182,102 @@ void IsNewsEvent()
       if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
          continue;
 
-      string currency = country.currency;
-      string margin = SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN);
-      string profit = SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT);
-      if (currency != margin && currency != profit)
+      string symbol;
+      string margin;
+      string profit;
+      if (currency == "AUD")
+      {
+         symbol = "AUDUSD";
+         margin = "AUD";
+         profit = "USD";
+      }
+      else if (currency == "EUR")
+      {
+         symbol = "EURUSD";
+         margin = "EUR";
+         profit = "USD";
+      }
+      else if (currency == "GBP")
+      {
+         symbol = "GBPUSD";
+         margin = "GBP";
+         profit = "USD";
+      }
+      else if (currency == "CAD")
+      {
+         symbol = "USDCAD";
+         margin = "USD";
+         profit = "CAD";
+      }
+      else if (currency == "CHF")
+      {
+         symbol = "USDCHF";
+         margin = "USD";
+         profit = "CHF";
+      }
+      else if (currency == "JPY")
+      {
+         symbol = "USDJPY";
+         margin = "USD";
+         profit = "JPY";
+      }
+      else if (currency == "XAU")
+      {
+         symbol = "XAUUSD";
+         margin = "XAU";
+         profit = "USD";
+      }
+      else
          continue;
 
       ENUM_CALENDAR_EVENT_IMPACT newsImpact = news[i].impact_type;
       ENUM_CALENDAR_EVENT_IMPACT histImpact = hist[i].impact_type;
-      if (!(newsImpact != CALENDAR_IMPACT_NA && histImpact == CALENDAR_IMPACT_NA))
+      if (!((newsImpact == CALENDAR_IMPACT_POSITIVE || newsImpact == CALENDAR_IMPACT_NEGATIVE) && newsImpact != histImpact))
          continue;
 
-      string msg = (newsImpact == CALENDAR_IMPACT_POSITIVE ? "+" : "-") + currency + event.name;
+      string msg = currency + (newsImpact == CALENDAR_IMPACT_POSITIVE ? "+ " : "- ") + event.name + " " + (string)event.importance;
       bool isBuy = (currency == margin && newsImpact == CALENDAR_IMPACT_POSITIVE) ||
                    (currency != margin && newsImpact == CALENDAR_IMPACT_NEGATIVE);
-      executeTrade(isBuy, msg);
+
+      if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
+         executeTrade(symbol, isBuy, msg, 2);
+      else
+         executeTrade(symbol, isBuy, msg);
+
       hist[i] = news[i];
+      Print(msg);
    }
 }
 
-void executeTrade(bool isBuy, string msg)
+void executeTrade(string symbol, bool isBuy, string msg, int volDivider = 1)
 {
+   double atr = AtrValue(symbol);
+
    if (isBuy)
    {
-      double stopLoss = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_ASK) - AtrValue(), Digits());
-      trade.Buy(Volume(), NULL, 0, stopLoss, 0, msg);
+      double stopLoss = SymbolInfoDouble(symbol, SYMBOL_ASK) - atr;
+      trade.Buy(Volume(symbol, volDivider), symbol, 0, stopLoss, 0, msg);
    }
    else
    {
-      double stopLoss = NormalizeDouble(SymbolInfoDouble(Symbol(), SYMBOL_BID) + AtrValue(), Digits());
-      trade.Sell(Volume(), NULL, 0, stopLoss, 0, msg);
+      double stopLoss = SymbolInfoDouble(symbol, SYMBOL_BID) + atr;
+      trade.Sell(Volume(symbol, volDivider), symbol, 0, stopLoss, 0, msg);
    }
    if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
    {
       Print("Failed to open position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
       return;
    }
-   Print(msg);
 }
 
 void CheckTrades()
+{
+   CheckClose();
+   CheckTrail();
+}
+
+// function check for close
+void CheckClose()
 {
    int total = PositionsTotal();
    for (int i = total - 1; i >= 0; i--)
@@ -201,8 +313,71 @@ void CheckTrades()
          Print("Failed to get position symbol");
          return;
       }
-      if (symbol != Symbol())
+      datetime openTime;
+      if (!PositionGetInteger(POSITION_TIME, openTime))
+      {
+         Print("Failed to get position open time");
+         return;
+      }
+
+      // check for close
+      if (TimeCurrent() > openTime + PeriodSeconds(InpTimeFrame))
+      {
+         trade.PositionClose(ticket);
+         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
+         {
+            Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
+            return;
+         }
+      }
+   }
+}
+
+void CheckTrail()
+{
+   if (InpTrailingStop == 0)
+      return;
+
+   int total = PositionsTotal();
+   for (int i = total - 1; i >= 0; i--)
+   {
+      if (total != PositionsTotal())
+      {
+         total = PositionsTotal();
+         i = total;
          continue;
+      }
+      ulong ticket = PositionGetTicket(i);
+      if (ticket <= 0)
+      {
+         Print("Failed to get position ticket");
+         return;
+      }
+      if (!PositionSelectByTicket(ticket))
+      {
+         Print("Failed to select position by ticket");
+         return;
+      }
+      long magicNumber;
+      if (!PositionGetInteger(POSITION_MAGIC, magicNumber))
+      {
+         Print("Failed to get position magic number");
+         return;
+      }
+      if (InpMagicNumber != magicNumber)
+         continue;
+      string symbol;
+      if (!PositionGetString(POSITION_SYMBOL, symbol))
+      {
+         Print("Failed to get position symbol");
+         return;
+      }
+      long positionType;
+      if (!PositionGetInteger(POSITION_TYPE, positionType))
+      {
+         Print("Failed to get position type");
+         return;
+      }
       double entryPrice;
       if (!PositionGetDouble(POSITION_PRICE_OPEN, entryPrice))
       {
@@ -215,61 +390,33 @@ void CheckTrades()
          Print("Failed to get position stop loss");
          return;
       }
-      double takeProfit;
-      if (!PositionGetDouble(POSITION_TP, takeProfit))
-      {
-         Print("Failed to get position take profit");
-         return;
-      }
-      long positionType;
-      if (!PositionGetInteger(POSITION_TYPE, positionType))
-      {
-         Print("Failed to get position type");
-         return;
-      }
-      datetime openTime;
-      if (!PositionGetInteger(POSITION_TIME, openTime))
-      {
-         Print("Failed to get position open time");
-         return;
-      }
 
-      // check for close
-      if (TimeCurrent() > openTime + PeriodSeconds(InpCloseTime))
-      {
-         trade.PositionClose(ticket);
-         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-         {
-            Print("Failed to close position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-            return;
-         }
-         continue;
-      }
+      double currentPrice = (SymbolInfoDouble(symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol, SYMBOL_BID)) / 2;
+      double atr = AtrValue(symbol);
+      double trail = atr * InpTrailingStop;
+      int multiplier = ((int)MathFloor(MathAbs(currentPrice - entryPrice) / trail));
+      double newStopLoss = 0;
 
-      // check for be
-      if (entryPrice == stopLoss)
+      if (multiplier < 1)
          continue;
 
-      double bePrice = 0;
-      if (positionType == POSITION_TYPE_BUY)
+      if (positionType == POSITION_TYPE_BUY && currentPrice > entryPrice)
       {
-         bePrice = NormalizeDouble(entryPrice + MathAbs(entryPrice - stopLoss), Digits());
+         newStopLoss = entryPrice + trail * (multiplier - 1);
       }
-      else if (positionType == POSITION_TYPE_SELL)
+      else if (positionType == POSITION_TYPE_SELL && currentPrice < entryPrice)
       {
-         bePrice = NormalizeDouble(entryPrice - MathAbs(entryPrice - stopLoss), Digits());
+         newStopLoss = entryPrice - trail * (multiplier - 1);
       }
-      if (bePrice == 0)
+
+      if (newStopLoss == stopLoss || newStopLoss == 0)
          continue;
-      if ((positionType == POSITION_TYPE_BUY && SymbolInfoDouble(Symbol(), SYMBOL_BID) > bePrice) || (positionType == POSITION_TYPE_SELL && SymbolInfoDouble(Symbol(), SYMBOL_ASK) < bePrice))
+
+      trade.PositionModify(ticket, newStopLoss, 0);
+      if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
       {
-         trade.PositionModify(ticket, entryPrice, 0);
-         if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
-         {
-            Print("Failed to modify position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
-            return;
-         }
-         continue;
+         Print("Failed to modify position. Result: " + (string)trade.ResultRetcode() + " - " + trade.ResultRetcodeDescription());
+         return;
       }
    }
 }
