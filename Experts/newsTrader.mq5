@@ -7,18 +7,19 @@ CTrade trade;
 
 input group "========= General settings =========";
 input long InpMagicNumber = 888;                // Magic
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // timeFrame
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H4; // timeFrame
 
 input group "========= Risk settings =========";
 enum RISK_MODE_ENUM
 {
    RISK_MODE_1, // Safe
    RISK_MODE_2, // Low
-   RISK_MODE_3, // Moderate
+   RISK_MODE_3, // Medium
    RISK_MODE_4, // High
    RISK_MODE_5, // Extreme
+   RISK_MODE_6, // Death
 };
-input RISK_MODE_ENUM InpRiskMode = RISK_MODE_3; // Risk
+input RISK_MODE_ENUM InpRiskMode = RISK_MODE_5; // Medium Risk
 double InpRisk;
 
 enum TRAILING_STOP_MODE_ENUM
@@ -29,7 +30,7 @@ enum TRAILING_STOP_MODE_ENUM
    TRAILING_STOP_MODE_75,  // 75%
    TRAILING_STOP_MODE_100, // 100%
 };
-input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_100; // Trail
+input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_25; // Trail
 double InpTrailingStop = 0;
 
 input group "========= Importance =========";
@@ -52,6 +53,8 @@ int OnInit()
       InpRisk = 2.5;
    else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_5)
       InpRisk = 5;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_6)
+      InpRisk = 10;
 
    if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_0)
       InpTrailingStop = 0;
@@ -82,8 +85,6 @@ void OnTick()
    if (IsNewBar(PERIOD_D1))
    {
       GetCalendarValue(hist);
-      Print(AtrValue("AUDUSD"), " ", AtrValue("EURUSD"), " ", AtrValue("GBPUSD"), " ", AtrValue("USDCAD"), " ", AtrValue("USDCHF"), " ", AtrValue("USDJPY"), " ", AtrValue("XAUUSD"));
-      Print(Volume("AUDUSD"), " ", Volume("EURUSD"), " ", Volume("GBPUSD"), " ", Volume("USDCAD"), " ", Volume("USDCHF"), " ", Volume("USDJPY"), " ", Volume("XAUUSD"));
    }
    IsNewsEvent();
    CheckTrades();
@@ -109,34 +110,35 @@ double AtrValue(string symbol)
    ArraySetAsSeries(priceArray, true);
    CopyBuffer(atrHandle, 0, 0, 1, priceArray);
    double atrValue = priceArray[0];
-   return atrValue;
+   return Normalize(symbol, atrValue);
 }
 
 double Volume(string symbol, int volDivider = 1)
 {
    double atr = AtrValue(symbol);
-
    double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
    double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
    double lotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
-
    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRisk / volDivider / 100;
-   double moneyLotStep = (atr / tickSize) * tickValue * lotStep;
-
+   double moneyLotStep = atr / tickSize * tickValue * lotStep;
    double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
-
    double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
    double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
 
-   if (lots < minVol)
+   if (!(atr > 0))
+   {
+      Print("Failed to get ATR value, sending minVol: ", minVol);
+      return minVol;
+   }
+   else if (lots < minVol)
    {
       Print(lots, " > Adjusted to minimum volume > ", minVol, " Atr: ", atr);
-      lots = minVol;
+      return minVol;
    }
    else if (lots > maxVol)
    {
       Print(lots, " > Adjusted to maximum volume > ", maxVol, " Atr: ", atr);
-      lots = maxVol;
+      return maxVol;
    }
 
    return lots;
@@ -180,6 +182,9 @@ void IsNewsEvent()
          continue;
       if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
          continue;
+
+      if (news[i].actual_value == news[i].forecast_value || news[i].actual_value == news[i].prev_value)
+         {Print("No change in actual value "+ event.name); continue;}
 
       string symbol;
       string margin;
@@ -238,9 +243,6 @@ void IsNewsEvent()
       bool isBuy = (currency == margin && newsImpact == CALENDAR_IMPACT_POSITIVE) ||
                    (currency != margin && newsImpact == CALENDAR_IMPACT_NEGATIVE);
 
-      if (news[i].actual_value == news[i].forecast_value)
-         continue;
-
       if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
          executeTrade(symbol, isBuy, msg, 2);
       else
@@ -257,12 +259,12 @@ void executeTrade(string symbol, bool isBuy, string msg, int volDivider = 1)
 
    if (isBuy)
    {
-      double stopLoss = SymbolInfoDouble(symbol, SYMBOL_ASK) - atr;
+      double stopLoss = Normalize(symbol, SymbolInfoDouble(symbol, SYMBOL_ASK) - atr);
       trade.Buy(Volume(symbol, volDivider), symbol, 0, stopLoss, 0, msg);
    }
    else
    {
-      double stopLoss = SymbolInfoDouble(symbol, SYMBOL_BID) + atr;
+      double stopLoss = Normalize(symbol, SymbolInfoDouble(symbol, SYMBOL_BID) + atr);
       trade.Sell(Volume(symbol, volDivider), symbol, 0, stopLoss, 0, msg);
    }
    if (trade.ResultRetcode() != TRADE_RETCODE_DONE)
@@ -392,9 +394,9 @@ void CheckTrail()
          return;
       }
 
-      double currentPrice = (SymbolInfoDouble(symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol, SYMBOL_BID)) / 2;
+      double currentPrice = Normalize(symbol, (SymbolInfoDouble(symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol, SYMBOL_BID)) / 2);
       double atr = AtrValue(symbol);
-      double trail = atr * InpTrailingStop;
+      double trail = Normalize(symbol, atr * InpTrailingStop);
       int multiplier = ((int)MathFloor(MathAbs(currentPrice - entryPrice) / trail));
       double newStopLoss = 0;
 
@@ -403,11 +405,11 @@ void CheckTrail()
 
       if (positionType == POSITION_TYPE_BUY && currentPrice > entryPrice)
       {
-         newStopLoss = entryPrice + trail * (multiplier - 1);
+         newStopLoss = Normalize(symbol, entryPrice + trail * (multiplier - 1));
       }
       else if (positionType == POSITION_TYPE_SELL && currentPrice < entryPrice)
       {
-         newStopLoss = entryPrice - trail * (multiplier - 1);
+         newStopLoss = Normalize(symbol, entryPrice - trail * (multiplier - 1));
       }
 
       if (newStopLoss == stopLoss || newStopLoss == 0)
@@ -420,4 +422,11 @@ void CheckTrail()
          return;
       }
    }
+}
+
+double Normalize(string symbol, double price)
+{
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   double result = NormalizeDouble(price, digits);
+   return result;
 }
