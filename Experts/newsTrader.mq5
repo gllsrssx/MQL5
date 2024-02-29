@@ -93,13 +93,13 @@ void OnTick()
    if (IsNewBar(PERIOD_D1))
    {
       GetCalendarValue(hist);
-      Comment( "AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
-               "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
-               "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
-               "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
-               "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
-               "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
-               "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n" );
+      Comment("AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
+              "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
+              "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
+              "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
+              "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
+              "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
+              "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n");
    }
 }
 
@@ -255,6 +255,7 @@ void IsNewsEvent()
 
       if (news[i].actual_value == news[i].forecast_value || news[i].actual_value == news[i].prev_value)
       {
+         hist[i] = news[i];
          Print("No change in actual value " + msg);
          continue;
       }
@@ -428,7 +429,7 @@ void CheckTrail()
          newStopLoss = Normalize(symbol, entryPrice - trail * (multiplier - 1));
       }
 
-      if (newStopLoss == stopLoss || newStopLoss == 0)
+      if (newStopLoss == stopLoss || newStopLoss == 0 || (positionType == POSITION_TYPE_BUY && newStopLoss < stopLoss) || (positionType == POSITION_TYPE_SELL && newStopLoss > stopLoss))
          continue;
 
       trade.PositionModify(ticket, newStopLoss, 0);
