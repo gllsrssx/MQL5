@@ -68,8 +68,14 @@ int OnInit()
       InpTrailingStop = 100;
    InpTrailingStop = InpTrailingStop / 100;
 
-   Print(AtrValue("AUDUSD"), " ", AtrValue("EURUSD"), " ", AtrValue("GBPUSD"), " ", AtrValue("USDCAD"), " ", AtrValue("USDCHF"), " ", AtrValue("USDJPY"), " ", AtrValue("XAUUSD"));
-   Print(Volume("AUDUSD"), " ", Volume("EURUSD"), " ", Volume("GBPUSD"), " ", Volume("USDCAD"), " ", Volume("USDCHF"), " ", Volume("USDJPY"), " ", Volume("XAUUSD"));
+   GetCalendarValue(hist);
+   Comment("AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
+           "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
+           "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
+           "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
+           "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
+           "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
+           "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n");
 
    trade.SetExpertMagicNumber(InpMagicNumber);
    return (INIT_SUCCEEDED);
@@ -82,12 +88,19 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
+   IsNewsEvent();
+   CheckTrades();
    if (IsNewBar(PERIOD_D1))
    {
       GetCalendarValue(hist);
+      Comment( "AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
+               "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
+               "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
+               "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
+               "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
+               "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
+               "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n" );
    }
-   IsNewsEvent();
-   CheckTrades();
 }
 
 bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
@@ -127,7 +140,7 @@ double Volume(string symbol, int volDivider = 1)
 
    if (!(atr > 0))
    {
-      Print("Failed to get ATR value, sending minVol: ", minVol);
+      Print(atr, " Failed to get ATR value, sending minVol: ", minVol);
       return minVol;
    }
    else if (lots < minVol)
@@ -182,9 +195,6 @@ void IsNewsEvent()
          continue;
       if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
          continue;
-
-      if (news[i].actual_value == news[i].forecast_value || news[i].actual_value == news[i].prev_value)
-         {Print("No change in actual value "+ event.name); continue;}
 
       string symbol;
       string margin;
@@ -242,6 +252,12 @@ void IsNewsEvent()
       string msg = currency + (newsImpact == CALENDAR_IMPACT_POSITIVE ? "+ " : "- ") + event.name + " " + (string)event.importance;
       bool isBuy = (currency == margin && newsImpact == CALENDAR_IMPACT_POSITIVE) ||
                    (currency != margin && newsImpact == CALENDAR_IMPACT_NEGATIVE);
+
+      if (news[i].actual_value == news[i].forecast_value || news[i].actual_value == news[i].prev_value)
+      {
+         Print("No change in actual value " + msg);
+         continue;
+      }
 
       if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
          executeTrade(symbol, isBuy, msg, 2);
