@@ -18,8 +18,9 @@ enum RISK_MODE_ENUM
    RISK_MODE_4, // High
    RISK_MODE_5, // Extreme
    RISK_MODE_6, // Death
+   RISK_MODE_7, // Rage
 };
-input RISK_MODE_ENUM InpRiskMode = RISK_MODE_5; // Medium Risk
+input RISK_MODE_ENUM InpRiskMode = RISK_MODE_3; // Medium Risk
 double InpRisk;
 
 enum TRAILING_STOP_MODE_ENUM
@@ -33,13 +34,16 @@ enum TRAILING_STOP_MODE_ENUM
 input TRAILING_STOP_MODE_ENUM InpTrailingStopMode = TRAILING_STOP_MODE_25; // Trail
 double InpTrailingStop = 0;
 
-input group "========= Importance =========";
-input bool InpImportance_low = false;     // low
-input bool InpImportance_moderate = true; // moderate
-input bool InpImportance_high = true;     // high
+// input group "========= Importance =========";
+bool InpImportance_low = false;     // low
+bool InpImportance_moderate = true; // moderate
+bool InpImportance_high = true;     // high
 
 MqlCalendarValue hist[];
 MqlCalendarValue news[];
+
+int handleAtr;
+double bufferAtr[];
 
 int OnInit()
 {
@@ -55,6 +59,8 @@ int OnInit()
       InpRisk = 5;
    else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_6)
       InpRisk = 10;
+   else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_7)
+      InpRisk = 20;
 
    if (TRAILING_STOP_MODE_ENUM(InpTrailingStopMode) == TRAILING_STOP_MODE_0)
       InpTrailingStop = 0;
@@ -69,14 +75,7 @@ int OnInit()
    InpTrailingStop = InpTrailingStop / 100;
 
    GetCalendarValue(hist);
-   Comment("AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
-           "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
-           "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
-           "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
-           "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
-           "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
-           "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n");
-
+   Plot();
    trade.SetExpertMagicNumber(InpMagicNumber);
    return (INIT_SUCCEEDED);
 }
@@ -93,13 +92,7 @@ void OnTick()
    if (IsNewBar(PERIOD_D1))
    {
       GetCalendarValue(hist);
-      Comment("AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
-              "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
-              "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
-              "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
-              "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
-              "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
-              "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n");
+      Plot();
    }
 }
 
@@ -117,13 +110,11 @@ bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
 
 double AtrValue(string symbol)
 {
-   int atrHandle;
-   atrHandle = iATR(symbol, InpTimeFrame, 999);
-   double priceArray[];
-   ArraySetAsSeries(priceArray, true);
-   CopyBuffer(atrHandle, 0, 0, 1, priceArray);
-   double atrValue = priceArray[0];
-   return Normalize(symbol, atrValue);
+   handleAtr = iATR(symbol, InpTimeFrame, 120);
+   ArraySetAsSeries(bufferAtr, true);
+   CopyBuffer(handleAtr, 0, 0, 3, bufferAtr);
+   double atrValue = Normalize(symbol, bufferAtr[0]);
+   return atrValue;
 }
 
 double Volume(string symbol, int volDivider = 1)
@@ -154,7 +145,14 @@ double Volume(string symbol, int volDivider = 1)
       return maxVol;
    }
 
-   return lots;
+   return NormalizeDouble(lots, 2);
+}
+
+double Normalize(string symbol, double price)
+{
+   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
+   double result = NormalizeDouble(price, digits);
+   return result;
 }
 
 void GetCalendarValue(MqlCalendarValue &values[])
@@ -256,7 +254,7 @@ void IsNewsEvent()
       if (news[i].actual_value == news[i].forecast_value || news[i].actual_value == news[i].prev_value)
       {
          hist[i] = news[i];
-         Print("No change in actual value " + msg);
+         Print("No change in actual value >" + msg);
          continue;
       }
 
@@ -441,9 +439,65 @@ void CheckTrail()
    }
 }
 
-double Normalize(string symbol, double price)
+double realBalance;
+double maxDrawdown;
+string DrawDown()
 {
-   int digits = (int)SymbolInfoInteger(symbol, SYMBOL_DIGITS);
-   double result = NormalizeDouble(price, digits);
+   string result = "";
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   if (balance > realBalance)
+      realBalance = balance;
+   double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+   double drawdown = 100 - equity / realBalance * 100;
+   if (drawdown > maxDrawdown)
+      maxDrawdown = drawdown;
+   maxDrawdown = NormalizeDouble(maxDrawdown, 2);
+   if (maxDrawdown == 0)
+      return result;
+   return "Drawdown: " + (string)maxDrawdown + "%";
    return result;
+}
+
+double accBal = AccountInfoDouble(ACCOUNT_BALANCE);
+datetime startDate = TimeCurrent();
+string Profit()
+{
+   string result = "";
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   double profit = balance - accBal;
+   double profitPercent = profit / accBal * 100;
+   datetime endDate = TimeCurrent();
+   int days = (int)(endDate - startDate) / 86400;
+   int tradingDays = days * 5 / 7;
+   double profitPerDay = profitPercent / tradingDays;
+   double profitPerMonth = profitPerDay * 20;
+   profitPercent = NormalizeDouble(profitPercent, 2);
+   profitPerDay = NormalizeDouble(profitPerDay, 2);
+   profitPerMonth = NormalizeDouble(profitPerMonth, 2);
+   result = "Profit: " + (string)profitPercent + "%";
+   if (tradingDays > 0)
+      result += " | Profit per day: " + (string)profitPerDay + "%";
+   if (tradingDays > 20)
+      result += " | Profit per month: " + (string)profitPerMonth + "%";
+   return result;
+}
+
+void Stats()
+{
+   string stats = "\n" + DrawDown() + "\n" + Profit() + "\n";
+   stats += "\n" +
+            "AUDUSD: " + (string)Volume("AUDUSD") + " | " + (string)AtrValue("AUDUSD") + "\n" +
+            "EURUSD: " + (string)Volume("EURUSD") + " | " + (string)AtrValue("EURUSD") + "\n" +
+            "GBPUSD: " + (string)Volume("GBPUSD") + " | " + (string)AtrValue("GBPUSD") + "\n" +
+            "USDCAD: " + (string)Volume("USDCAD") + " | " + (string)AtrValue("USDCAD") + "\n" +
+            "USDCHF: " + (string)Volume("USDCHF") + " | " + (string)AtrValue("USDCHF") + "\n" +
+            "USDJPY: " + (string)Volume("USDJPY") + " | " + (string)AtrValue("USDJPY") + "\n" +
+            "XAUUSD: " + (string)Volume("XAUUSD") + " | " + (string)AtrValue("XAUUSD") + "\n";
+   Comment(stats);
+   // Print(stats);
+}
+
+void Plot()
+{
+   Stats();
 }
