@@ -1,4 +1,3 @@
-
 #property copyright "Copyright 2024, MetaQuotes Ltd."
 #property link "https://www.myfxbook.com/portfolio/news-trader/10751622"
 #property version "1.00"
@@ -23,7 +22,7 @@ enum RISK_MODE_ENUM
    RISK_MODE_8, // Kamikaze
 };
 
-input RISK_MODE_ENUM InpRiskMode = RISK_MODE_4; // Medium Risk
+input RISK_MODE_ENUM InpRiskMode = RISK_MODE_5; // Medium Risk
 double InpRisk;
 
 enum TRAILING_STOP_MODE_ENUM
@@ -51,6 +50,13 @@ double bufferAtr[];
 
 int OnInit()
 {
+   if (AccountInfoInteger(ACCOUNT_TRADE_MODE) != ACCOUNT_TRADE_MODE_DEMO)
+   {
+      Print("This EA is for demo accounts only!");
+      ExpertRemove();
+      return INIT_FAILED;
+   }
+
    if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_1)
       InpRisk = 0.1;
    else if (RISK_MODE_ENUM(InpRiskMode) == RISK_MODE_2)
