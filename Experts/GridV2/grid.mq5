@@ -2,28 +2,33 @@
 CTrade trade;
 
 // input parameters
-input double risk = 0.01;                          // risk
-input int inpPeriod = 0;                         // EMA period
-input int gridLength = 999;                       // grid period
-input ENUM_TIMEFRAMES timeFrame = PERIOD_H1;       // grid time frame
-input bool plot = false;                           //plot levels
+input double risk = 0.01;                    // risk
+input ENUM_TIMEFRAMES timeFrame = PERIOD_H4; // grid time frame
+int gridLength = 120;                        // grid period
+input int inpPeriod = 6;                     // EMA period
+input int maxGridAway = 6;                   // max grid away
+input bool longTrade = true;                 // long trades
+input bool shortTrade = false;               // short trades
+input bool plot = false;                     // plot levels
+input int InpMagicNumber = 666;              // magic number
 
 // global variables
-double bid, ask, spread, currentPrice, gridSize, gridLevels[8], close[], ema[],lastOpen;
-int trendEMA=0, copied, previousTrend=0, trendCounter;
+double bid, ask, spread, currentPrice, gridSize, gridLevels[8], close[], ema[], lastOpen;
+int trendEMA = 0, copied, previousTrend = 0, trendCounter;
 
 int OnInit()
 {
+  trade.SetExpertMagicNumber(InpMagicNumber);
   return (INIT_SUCCEEDED);
 }
 
 void OnTick()
-{  
+{
 
   // if lastOpen is different from current close, set previousTrend to trendEMA
-  if(lastOpen != iOpen(Symbol(), Period(), 1))
+  if (lastOpen != iOpen(Symbol(), Period(), 1))
   {
-   if (previousTrend != trendEMA)
+    if (previousTrend != trendEMA)
     {
       trendCounter = 0;
     }
@@ -35,7 +40,6 @@ void OnTick()
     lastOpen = iOpen(Symbol(), Period(), 1);
   }
 
-
   UpdateMarketInfo();
   UpdateGridLevels();
 
@@ -45,10 +49,11 @@ void OnTick()
     return;
   }
 
-  if(inpPeriod > 0)
+  if (inpPeriod > 0)
   {
     copied = CopyClose(Symbol(), 0, 0, inpPeriod, close);
-    if(copied <= 0) {
+    if (copied <= 0)
+    {
       Print("Error copying close prices: ", GetLastError());
       return;
     }
@@ -64,10 +69,14 @@ void OnTick()
     DeleteAllBuyOrders();
   if (trendEMA == 1)
     DeleteAllSellOrders();
-    
+
   DisplayComment();
-  if(plot)DrawGridLines();
+  if (plot)
+    DrawGridLines();
+
+  CloseLosingPositions();
 }
+
 void CalculateEMA(int period)
 {
   ArrayResize(ema, ArraySize(close));
@@ -79,20 +88,20 @@ void CalculateEMA(int period)
 
 int TrendEMA()
 {
-  if(inpPeriod == 0)
-    {
-     return 0;
-    }
-  if (ArraySize(close) < 50 || ArraySize(ema) < 50)
+  if (inpPeriod == 0)
+  {
+    return 0;
+  }
+  if (ArraySize(close) < inpPeriod || ArraySize(ema) < inpPeriod)
   {
     Print("Not enough data for TrendEMA function. ArraySize(close): ", ArraySize(close), " ArraySize(ema): ", ArraySize(ema));
     return 0;
   }
-  
+
   bool isBull = true;
   bool isBear = true;
 
-  for (int i = 5; i <= 50; i += 5)
+  for (int i = 1; i <= inpPeriod; i += 1)
   {
     if (close[ArraySize(close) - i] <= ema[ArraySize(ema) - i])
       isBull = false;
@@ -126,9 +135,13 @@ void DisplayComment()
   string commentText;
   commentText += "trend counter: " + IntegerToString(trendCounter) + "\n";
   commentText += "lastOpen: " + DoubleToString(lastOpen, Digits()) + "\n";
-  commentText += "previousTrend: " + (previousTrend == 1 ? "bull" : previousTrend == -1 ? "bear" : "range") + "\n";
+  commentText += "previousTrend: " + (previousTrend == 1 ? "bull" : previousTrend == -1 ? "bear"
+                                                                                        : "range") +
+                 "\n";
   commentText += "Symbol: " + Symbol() + "\n";
-  commentText += "Trend: " + (trendEMA == 1 ? "bull" : trendEMA == -1 ? "bear" : "range") + "\n";
+  commentText += "Trend: " + (trendEMA == 1 ? "bull" : trendEMA == -1 ? "bear"
+                                                                      : "range") +
+                 "\n";
   commentText += "Positions: " + IntegerToString(PositionsTotal()) + "\n";
   commentText += "Current Price: " + DoubleToString(currentPrice, Digits()) + "\n";
   commentText += "Spread: " + DoubleToString(spread, Digits()) + "\n";
@@ -271,12 +284,12 @@ void CheckTrades()
 
   for (int i = 0; i < ArraySize(gridLevels) - 2; i++)
   {
-    if (!CheckExistence("buy", gridLevels[i]))
+    if (!CheckExistence("buy", gridLevels[i]) && longTrade)
     {
       OrderSend("buy", gridLevels[i], gridLevels[i] + gridSize);
     }
 
-    if (!CheckExistence("sell", gridLevels[i]))
+    if (!CheckExistence("sell", gridLevels[i]) && shortTrade)
     {
       OrderSend("sell", gridLevels[i], gridLevels[i] - gridSize);
     }
@@ -289,7 +302,7 @@ void OrderSend(string direction, double price, double profit)
   double lotSize = 0.01;
   if (direction == "buy" && (trendEMA == 1 || trendEMA == 0))
   {
-    lotSize = OptimumLotSize(risk, profit-price);
+    lotSize = OptimumLotSize(risk, profit - price);
     if (price < bid)
     {
       trade.BuyLimit(lotSize, price, Symbol(), 0, profit, ORDER_TIME_DAY, 0, comment);
@@ -301,7 +314,7 @@ void OrderSend(string direction, double price, double profit)
   }
   if (direction == "sell" && (trendEMA == -1 || trendEMA == 0))
   {
-    lotSize = OptimumLotSize(risk, price-profit);
+    lotSize = OptimumLotSize(risk, price - profit);
     if (price > ask)
     {
       trade.SellLimit(lotSize, price, Symbol(), 0, profit, ORDER_TIME_DAY, 0, comment);
@@ -332,7 +345,8 @@ void DeleteAllOrders()
       string symbol = Symbol();
       string orderSymbol = OrderGetString(ORDER_SYMBOL);
       ulong ticket = OrderGetTicket(i);
-      if (orderSymbol == symbol)
+      long magic = OrderGetInteger(ORDER_MAGIC);
+      if (orderSymbol == symbol && magic == InpMagicNumber)
       {
         trade.OrderDelete(ticket);
       }
@@ -349,7 +363,8 @@ void DeleteAllBuyOrders()
       string symbol = Symbol();
       string orderSymbol = OrderGetString(ORDER_SYMBOL);
       ulong ticket = OrderGetTicket(i);
-      if (orderSymbol == symbol)
+      long magic = OrderGetInteger(ORDER_MAGIC);
+      if (orderSymbol == symbol && magic == InpMagicNumber)
       {
         string comment = OrderGetString(ORDER_COMMENT);
         string commentParts[];
@@ -372,7 +387,8 @@ void DeleteAllSellOrders()
       string symbol = Symbol();
       string orderSymbol = OrderGetString(ORDER_SYMBOL);
       ulong ticket = OrderGetTicket(i);
-      if (orderSymbol == symbol)
+      long magic = OrderGetInteger(ORDER_MAGIC);
+      if (orderSymbol == symbol && magic == InpMagicNumber)
       {
         string comment = OrderGetString(ORDER_COMMENT);
         string commentParts[];
@@ -395,13 +411,14 @@ void UpdateTakeProfitPositions()
       string symbol = Symbol();
       ulong ticket = PositionGetTicket(i);
       string positionSymbol = PositionGetString(POSITION_SYMBOL);
+      long magic = PositionGetInteger(POSITION_MAGIC);
       long positionType = PositionGetInteger(POSITION_TYPE);
       double entryPrice = NormalizeDouble(PositionGetDouble(POSITION_PRICE_OPEN), Digits());
       double takeProfit = NormalizeDouble(PositionGetDouble(POSITION_TP), Digits());
       double expectedLong = NormalizeDouble(entryPrice + gridSize, Digits());
       double expectedShort = NormalizeDouble(entryPrice - gridSize, Digits());
 
-      if (positionSymbol == symbol)
+      if (positionSymbol == symbol && magic == InpMagicNumber)
       {
         if (positionType == POSITION_TYPE_BUY)
         {
@@ -422,18 +439,57 @@ void UpdateTakeProfitPositions()
   }
 }
 
-double OptimumLotSize(double riskPercent, double stopPoints){
-   double oneLotEqual = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_CONTRACT_SIZE);
-   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
-   double maxLossAccountCurrency = riskPercent/100 * AccountInfoDouble(ACCOUNT_BALANCE);
-   double opLot = NormalizeDouble(maxLossAccountCurrency / ((oneLotEqual * tickValue) * MathAbs(stopPoints)), 2);
+double OptimumLotSize(double riskPercent, double stopPoints)
+{
+  double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+  double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+  double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+  double riskMoney = AccountInfoDouble(ACCOUNT_EQUITY) * riskPercent;
+  double moneyLotStep = stopPoints / tickSize * tickValue * lotStep;
+  double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
+  double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+  double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
 
-   if(opLot < 0.01)
-     {
-      opLot = 0.01;
-      Print("The calculated lot size is less than 0.01");
-     }
-     return opLot;
+  if (lots < minVol)
+  {
+    Print(lots, " > Adjusted to minimum volume > ", minVol);
+    return minVol;
+  }
+  else if (lots > maxVol)
+  {
+    Print(lots, " > Adjusted to maximum volume > ", maxVol);
+    return maxVol;
+  }
+
+  return NormalizeDouble(lots, 2);
 }
 
+void CloseLosingPositions()
+{
+  if (maxGridAway == 0)
+    return;
 
+  string symbol = Symbol();
+  double slBuys = NormalizeDouble(currentPrice + (maxGridAway * gridSize), Digits());
+  double slSells = NormalizeDouble(currentPrice - (maxGridAway * gridSize), Digits());
+
+  for (int i = 0; i < PositionsTotal(); i++)
+  {
+    if (PositionGetTicket(i))
+    {
+      ulong ticket = PositionGetTicket(i);
+      string positionSymbol = PositionGetString(POSITION_SYMBOL);
+      long magic = PositionGetInteger(POSITION_MAGIC);
+      long positionType = PositionGetInteger(POSITION_TYPE);
+      double entryPrice = NormalizeDouble(PositionGetDouble(POSITION_PRICE_OPEN), Digits());
+
+      if (positionSymbol != symbol || magic != InpMagicNumber)
+        return;
+
+      if (positionType == POSITION_TYPE_BUY && entryPrice > slBuys)
+        trade.PositionClose(ticket);
+      if (positionType == POSITION_TYPE_SELL && entryPrice < slSells)
+        trade.PositionClose(ticket);
+    }
+  }
+}

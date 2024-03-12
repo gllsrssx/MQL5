@@ -140,8 +140,29 @@ void TrailStopLoss()
 
 double Volume()
 {
-    double accountBalance = AccountInfoDouble(ACCOUNT_BALANCE);
-    double riskAmount = accountBalance * riskPercent / 100;
-    double volume = riskAmount / (gridSize * SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE));
-    return NormalizeDouble(volume, 2); // Adjust this to match your broker's volume step size
+   
+    double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
+    double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
+    double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
+
+    double riskMoney = AccountInfoDouble(ACCOUNT_EQUITY) * riskPercent / 100;
+    double moneyLotStep = (MathAbs(gridSize) / tickSize) * tickValue * lotStep;
+
+    double lots = MathFloor(riskMoney / moneyLotStep) * lotStep;
+
+    double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
+    double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
+
+    if (lots < minVol)
+    {
+        lots = minVol;
+        Print(lots, " Adjusted to minimum volume ", minVol);
+    }
+    else if (lots > maxVol)
+    {
+        lots = maxVol;
+        Print(lots, " Adjusted to maximum volume ", minVol);
+    }
+
+    return lots;
 }
