@@ -1,11 +1,7 @@
-//+------------------------------------------------------------------+
-//|                                                RangeBreakout.mq5 |
-//|                                  Copyright 2023, MetaQuotes Ltd. |
-//|                                             https://www.mql5.com |
-//+------------------------------------------------------------------+
 #property copyright "Copyright 2023, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
 #property version "2.00"
+
 #include <Trade\Trade.mqh>
 #include <Canvas\Canvas.mqh>
 
@@ -21,7 +17,7 @@ input double InpRangeDeviation = 5;      // Range Deviation (0 = disabled)
 input int InpTakeProfit = 0;             // Take Profit in % of the range (0 = disabled)
 input int InpStopLoss = 105;             // Stop Loss in % of the range (0 = disabled)
 input int InpPercentBreakEven = 90;      // sl% to break even (0 = disabled)
-input int InpPercentBreakEvenAdded = 10; // % added to break even (0 = disabled)
+input int InpPercentBreakEvenAdded = 5; // % added to break even (0 = disabled)
 
 input group "========= Range settings =========";
 input int InpTimezone = 3;           // Timezone
@@ -29,7 +25,7 @@ input bool InpDaylightSaving = true; // DST zone
 input bool InpTokyoRange = true;     // London open
 input bool InpLondonRange = true;    // New York open
 
-int InpRangeStartTokyo = 1 + InpTimezone;  // Range start time in hours
+int InpRangeStartTokyo = 2 + InpTimezone;  // Range start time in hours
 int InpRangeStopTokyo = 6 + InpTimezone;   // Range stop time in hours
 int InpRangeCloseTokyo = 11 + InpTimezone; // Range close time in hours
 
@@ -364,7 +360,8 @@ void CheckBreakouts(RANGE_STRUCT &range)
             range.slDistance = NormalizeDouble(MathAbs(lastTick.ask - sl), Digits());
 
             // open buy position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range), lastTick.ask, sl, tp, "Breakout " + range.session);
+            if (InpTakeLongs)
+                trade.PositionOpen(Symbol(), ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range), lastTick.ask, sl, tp, "Breakout " + range.session);
         }
 
         // check for low breakout
@@ -381,7 +378,8 @@ void CheckBreakouts(RANGE_STRUCT &range)
             range.slDistance = NormalizeDouble(MathAbs(sl - lastTick.bid), Digits());
 
             // open sell position
-            trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range), lastTick.bid, sl, tp, "Breakout " + range.session);
+            if (InpTakeShorts)
+                trade.PositionOpen(Symbol(), ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range), lastTick.bid, sl, tp, "Breakout " + range.session);
         }
     }
 }
@@ -462,6 +460,11 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     {
         colorRange = colorRangeLondon;
         colorBreakout = colorBreakoutLondon;
+    }
+    else
+    {
+        colorRange = clrGreen;
+        colorBreakout = clrRed;
     }
 
     // start time
@@ -688,9 +691,9 @@ int DSTOffset()
 
     // check if we are in DST
     int DST_start_month = 3; // March
-    int DST_start_day = 8;   // average second Sunday
+    int DST_start_day = 11;   // average second Sunday
     int DST_end_month = 10;  // October
-    int DST_end_day = 1;     // average first Sunday
+    int DST_end_day = 4;     // average first Sunday
 
     if (month > DST_start_month && month < DST_end_month)
     {
