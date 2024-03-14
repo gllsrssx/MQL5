@@ -479,7 +479,7 @@ void DrawObjects()
         ObjectSetInteger(NULL, "range high", OBJPROP_BACK, true);
 
         ObjectCreate(NULL, "range high ", OBJ_TREND, 0, range.end_time, range.high, InpRangeClose >= 0 ? range.close_time : INT_MAX, range.high);
-        ObjectSetString(NULL, "range hig h", OBJPROP_TOOLTIP, "high of the range \n" + DoubleToString(range.high, Digits()));
+        ObjectSetString(NULL, "range high", OBJPROP_TOOLTIP, "high of the range \n" + DoubleToString(range.high, Digits()));
         ObjectSetInteger(NULL, "range high ", OBJPROP_COLOR, clrBlue);
         ObjectSetInteger(NULL, "range high ", OBJPROP_STYLE, STYLE_DOT);
         ObjectSetInteger(NULL, "range high ", OBJPROP_BACK, true);
