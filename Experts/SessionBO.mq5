@@ -26,12 +26,12 @@ input int InpPercentBreakEvenAdded = 10; // % added to break even (0 = disabled)
 input group "========= Range settings =========";
 input int InpTimezone = 3;           // Timezone
 input bool InpDaylightSaving = true; // DST zone
-input bool InpLondonOpen = true;     // London open
-input bool InpNewYorkOpen = true;    // New York open
+input bool InpTokyoRange = true;     // London open
+input bool InpLondonRange = true;    // New York open
 
 int InpRangeStartTokyo = 23 + InpTimezone; // Range start time in hours
 int InpRangeStopTokyo = 7 + InpTimezone;   // Range stop time in hours
-int InpRangeCloseTokyo = 11 + InpTimezone; // Range close time in hours
+int InpRangeCloseTokyo = 16 + InpTimezone; // Range close time in hours
 
 int InpRangeStartLondon = 7 + InpTimezone;  // Range start time in hours
 int InpRangeStopLondon = 11 + InpTimezone;  // Range stop time in hours
@@ -110,8 +110,10 @@ int OnInit()
     // calculated new range if inputs are changed
     if (_UninitReason == REASON_PARAMETERS && CountOpenPositions() == 0)
     {
-        CalculateRange(rangeTokyo, TokyoRangeStart, TokyoRangeDuration, TokyoRangeClose);
-        CalculateRange(rangeLondon, LondonRangeStart, LondonRangeDuration, LondonRangeClose);
+        if (InpTokyoRange)
+            CalculateRange(rangeTokyo, TokyoRangeStart, TokyoRangeDuration, TokyoRangeClose);
+        if (InpLondonRange)
+            CalculateRange(rangeLondon, LondonRangeStart, LondonRangeDuration, LondonRangeClose);
     }
 
     // draw objects
@@ -140,12 +142,16 @@ void OnTick()
     prevTick = lastTick;
     SymbolInfoTick(Symbol(), lastTick);
 
-    RangeCheck(rangeTokyo, TokyoRangeStart, TokyoRangeDuration, TokyoRangeClose);
-    RangeCheck(rangeLondon, LondonRangeStart, LondonRangeDuration, LondonRangeClose);
+    if (InpTokyoRange)
+        RangeCheck(rangeTokyo, TokyoRangeStart, TokyoRangeDuration, TokyoRangeClose);
+    if (InpLondonRange)
+        RangeCheck(rangeLondon, LondonRangeStart, LondonRangeDuration, LondonRangeClose);
 
     // check for breakouts
-    CheckBreakouts(rangeTokyo);
-    CheckBreakouts(rangeLondon);
+    if (InpTokyoRange)
+        CheckBreakouts(rangeTokyo);
+    if (InpLondonRange)
+        CheckBreakouts(rangeLondon);
 }
 
 // check user inputs
