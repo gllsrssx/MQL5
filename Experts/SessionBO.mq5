@@ -12,11 +12,11 @@ input bool InpTakeLongs = true;     // long trades
 input bool InpTakeShorts = true;    // short trades
 
 input group "========= Risk settings =========";
-input double InpLots = 1.0;              // Risk size
-input double InpRangeDeviation = 5;      // Range Deviation (0 = disabled)
-input int InpTakeProfit = 0;             // Take Profit in % of the range (0 = disabled)
-input int InpStopLoss = 105;             // Stop Loss in % of the range (0 = disabled)
-input int InpPercentBreakEven = 90;      // sl% to break even (0 = disabled)
+input double InpLots = 1.0;             // Risk size
+input double InpRangeDeviation = 5;     // Range Deviation (0 = disabled)
+input int InpTakeProfit = 0;            // Take Profit in % of the range (0 = disabled)
+input int InpStopLoss = 105;            // Stop Loss in % of the range (0 = disabled)
+input int InpPercentBreakEven = 90;     // sl% to break even (0 = disabled)
 input int InpPercentBreakEvenAdded = 5; // % added to break even (0 = disabled)
 
 input group "========= Range settings =========";
@@ -127,8 +127,9 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
-    // delete objects
-    ObjectsDeleteAll(NULL, "range");
+    // delete all objects
+    ObjectsDeleteAll(0, "Tokyo");
+    ObjectsDeleteAll(0, "London");
 }
 
 void OnTick()
@@ -468,7 +469,7 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     }
 
     // start time
-    string nameStart = "range start " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
+    string nameStart = session + " range start " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
     ObjectDelete(NULL, nameStart);
     if (range.start_time > 0)
     {
@@ -480,7 +481,7 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     }
 
     // end time
-    string nameEnd = "range end " + TimeToString(range.end_time, TIME_DATE | TIME_MINUTES);
+    string nameEnd = session + " range end " + TimeToString(range.end_time, TIME_DATE | TIME_MINUTES);
     ObjectDelete(NULL, nameEnd);
     if (range.end_time > 0)
     {
@@ -492,7 +493,7 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     }
 
     // close time
-    string nameClose = "range close " + TimeToString(range.close_time, TIME_DATE | TIME_MINUTES);
+    string nameClose = session + " range close " + TimeToString(range.close_time, TIME_DATE | TIME_MINUTES);
     ObjectDelete(NULL, nameClose);
     if (range.close_time > 0)
     {
@@ -504,7 +505,7 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     }
 
     // high start
-    string nameHigh = "range high " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
+    string nameHigh = session + " range high " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
     ObjectDelete(NULL, nameHigh);
     if (range.high > 0)
     {
@@ -524,7 +525,7 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
     }
 
     // low start
-    string nameLow = "range low " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
+    string nameLow = session + " range low " + TimeToString(range.start_time, TIME_DATE | TIME_MINUTES);
     ObjectsDeleteAll(NULL, nameLow);
     if (range.low < DBL_MAX)
     {
@@ -691,7 +692,7 @@ int DSTOffset()
 
     // check if we are in DST
     int DST_start_month = 3; // March
-    int DST_start_day = 11;   // average second Sunday
+    int DST_start_day = 11;  // average second Sunday
     int DST_end_month = 10;  // October
     int DST_end_day = 4;     // average first Sunday
 
