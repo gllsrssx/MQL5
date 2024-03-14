@@ -86,16 +86,16 @@ CCanvas canvas;
 
 int OnInit()
 {
-    if (TimeCurrent() < StringToTime("2024.04.01 00:00:00"))
-    {
-        Print("This is a demo version of the EA. It will only work until April 1, 2024.");
-    }
-    else
-    {
-        Print("This is a demo version of the EA. It will only work until April 1, 2024.");
-        ExpertRemove();
-        return INIT_FAILED;
-    }
+    // if (TimeCurrent() < StringToTime("2024.04.01 00:00:00"))
+    // {
+    //     Print("This is a demo version of the EA. It will only work until April 1, 2024.");
+    // }
+    // else
+    // {
+    //     Print("This is a demo version of the EA. It will only work until April 1, 2024.");
+    //     ExpertRemove();
+    //     return INIT_FAILED;
+    // }
 
     // DST
     DSTAdjust();
