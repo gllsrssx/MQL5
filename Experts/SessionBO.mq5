@@ -5,7 +5,7 @@
 //+------------------------------------------------------------------+
 #property copyright "Copyright 2023, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
-#property version "1.00"
+#property version "2.00"
 #include <Trade\Trade.mqh>
 #include <Canvas\Canvas.mqh>
 
@@ -29,13 +29,13 @@ input bool InpDaylightSaving = true; // DST zone
 input bool InpTokyoRange = true;     // London open
 input bool InpLondonRange = true;    // New York open
 
-int InpRangeStartTokyo = 23 + InpTimezone; // Range start time in hours
-int InpRangeStopTokyo = 7 + InpTimezone;   // Range stop time in hours
-int InpRangeCloseTokyo = 16 + InpTimezone; // Range close time in hours
+int InpRangeStartTokyo = 1 + InpTimezone;  // Range start time in hours
+int InpRangeStopTokyo = 6 + InpTimezone;   // Range stop time in hours
+int InpRangeCloseTokyo = 11 + InpTimezone; // Range close time in hours
 
 int InpRangeStartLondon = 7 + InpTimezone;  // Range start time in hours
 int InpRangeStopLondon = 11 + InpTimezone;  // Range stop time in hours
-int InpRangeCloseLondon = 20 + InpTimezone; // Range close time in hours
+int InpRangeCloseLondon = 16 + InpTimezone; // Range close time in hours
 
 int TokyoRangeStart;
 int TokyoRangeDuration;
@@ -60,6 +60,12 @@ input bool InpTuesday = true;   // Range on Tuesday
 input bool InpWednesday = true; // Range on Wednesday
 input bool InpThursday = true;  // Range on Thursday
 input bool InpFriday = true;    // Range on Friday
+
+input group "========= Color settings =========";
+input color colorRangeTokyo = clrAqua;       // Tokyo range color
+input color colorBreakoutTokyo = clrMagenta; // Tokyo breakout color
+input color colorRangeLondon = clrBlue;      // London range color
+input color colorBreakoutLondon = clrGold;   // London breakout color
 
 struct RANGE_STRUCT
 {
@@ -444,13 +450,18 @@ bool ClosePositions(RANGE_STRUCT &range)
 void DrawObjects(RANGE_STRUCT &range, int RangeClose)
 {
     string session = range.session;
-    color colorRange = clrBlue;
-    color colorBreakout = clrGold;
+    color colorRange;
+    color colorBreakout;
 
     if (session == "Tokyo")
     {
-        colorRange = clrAqua;
-        colorBreakout = clrMagenta;
+        colorRange = colorRangeTokyo;
+        colorBreakout = colorBreakoutTokyo;
+    }
+    else if (session == "London")
+    {
+        colorRange = colorRangeLondon;
+        colorBreakout = colorBreakoutLondon;
     }
 
     // start time
