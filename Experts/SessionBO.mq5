@@ -1,20 +1,18 @@
 #property copyright "Copyright 2023, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
 #property version "2.00"
-
 #include <Trade\Trade.mqh>
-#include <Canvas\Canvas.mqh>
 
 // Input parameters
 input group "========= General settings =========";
-input long InpMagicNumber = 777888; // Magic number
-input bool InpTakeLongs = true;     // long trades
-input bool InpTakeShorts = true;    // short trades
+input bool InpTakeLongs = true;  // long trades
+input bool InpTakeShorts = true; // short trades
 
 input group "========= Risk settings =========";
 input double InpLots = 1.0;             // Risk size
 input double InpRangeDeviation = 5;     // Range Deviation (0 = disabled)
 input int InpTakeProfit = 0;            // Take Profit in % of the range (0 = disabled)
+
 input int InpStopLoss = 105;            // Stop Loss in % of the range (0 = disabled)
 input int InpPercentBreakEven = 90;     // sl% to break even (0 = disabled)
 input int InpPercentBreakEvenAdded = 5; // % added to break even (0 = disabled)
@@ -41,7 +39,8 @@ int LondonRangeStart;
 int LondonRangeDuration;
 int LondonRangeClose;
 
-int DSToffset; // DST offset
+int DSToffset;      // DST offset
+int InpMagicNumber; // Magic number
 
 enum BREAKOUT_MODE_ENUM
 {
@@ -84,7 +83,6 @@ RANGE_STRUCT rangeLondon;
 
 MqlTick prevTick, lastTick;
 CTrade trade;
-CCanvas canvas;
 
 int OnInit()
 {
@@ -98,6 +96,9 @@ int OnInit()
     //     ExpertRemove();
     //     return INIT_FAILED;
     // }
+
+    // set magic number
+    InpMagicNumber = rand();
 
     // DST
     DSTAdjust();
