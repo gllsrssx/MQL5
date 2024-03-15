@@ -12,9 +12,9 @@ input bool InpTakeShorts = true; // Short trades
 input int InpDeviation = 5;      // Deviation (0 = off)
 
 input group "========= Exit settings =========";
-input int InpTakeProfit = 0;         // TP % range (0 = off)
-input int InpStopLoss = 100;         // SL % range (0 = off)
-input int InpPercentBreakEven = 100; // BE % range (0 = off)
+input int InpTakeProfit = 0;        // TP % range (0 = off)
+input int InpStopLoss = 100;        // SL % range (0 = off)
+input int InpPercentBreakEven = 90; // BE % range (0 = off)
 
 input group "========= Time settings =========";
 input int InpTimezone = 3;           // Timezone
@@ -72,9 +72,9 @@ struct RANGE_STRUCT
     bool f_entry;         // flag if we are in the range
     bool f_high_breakout; // flag if a high breakout occured
     bool f_low_breakout;  // flag if a low breakout occured
-    double slDistance;    // stop loss distance
+    double rangeDistance; // stop loss distance
 
-    RANGE_STRUCT() : session(""), start_time(0), end_time(0), close_time(0), high(0), low(DBL_MAX), f_entry(false), f_high_breakout(false), f_low_breakout(false), slDistance(0){};
+    RANGE_STRUCT() : session(""), start_time(0), end_time(0), close_time(0), high(0), low(DBL_MAX), f_entry(false), f_high_breakout(false), f_low_breakout(false), rangeDistance(0){};
 };
 
 RANGE_STRUCT rangeTokyo;
@@ -384,7 +384,7 @@ void CheckBreakouts(RANGE_STRUCT &range)
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.bid - deviation - ((range.high - range.low) * ((InpStopLoss + InpDeviation) * 0.01)), Digits());
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.bid + deviation + ((range.high - range.low) * ((InpTakeProfit + InpDeviation) * 0.01)), Digits());
 
-            range.slDistance = NormalizeDouble(MathAbs(lastTick.bid - sl), Digits());
+            range.rangeDistance = NormalizeDouble(MathAbs(range.high - range.low), Digits());
 
             // open buy position
             if (InpTakeLongs)
@@ -402,7 +402,7 @@ void CheckBreakouts(RANGE_STRUCT &range)
             double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.ask + deviation + ((range.high - range.low) * ((InpStopLoss + InpDeviation) * 0.01)), Digits());
             double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.ask - deviation - ((range.high - range.low) * ((InpTakeProfit + InpDeviation) * 0.01)), Digits());
 
-            range.slDistance = NormalizeDouble(MathAbs(sl - lastTick.ask), Digits());
+            range.rangeDistance = NormalizeDouble(MathAbs(sl - lastTick.ask), Digits());
 
             // open sell position
             if (InpTakeShorts)
@@ -576,12 +576,14 @@ void DrawObjects(RANGE_STRUCT &range, int RangeClose)
 
 double Volume(RANGE_STRUCT &range)
 {
+    double deviation = range.rangeDistance * (InpDeviation / 100.0);
+    double slDistance = range.rangeDistance + (deviation * 2);
     double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
     double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
     double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
 
     double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpLots / 100;
-    double moneyLotStep = (range.slDistance / tickSize) * tickValue * lotStep;
+    double moneyLotStep = (slDistance / tickSize) * tickValue * lotStep;
 
     double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
 
@@ -676,10 +678,10 @@ void BreakEven(RANGE_STRUCT &range)
             continue;
 
         // calculate a new stop loss distance based on the InpPercentBreakEven percentage
-        double beDistance = NormalizeDouble(range.slDistance * (InpPercentBreakEven-InpDeviation) / 100, Digits());
+        double beDistance = NormalizeDouble(range.rangeDistance * InpPercentBreakEven / 100, Digits());
 
         // calculate a new stop loss distance based on the InpPercentBreakEvenAdded percentage
-        double additionalDistance = NormalizeDouble(range.slDistance * InpDeviation / 100, Digits());
+        double additionalDistance = NormalizeDouble(range.rangeDistance * InpDeviation / 100, Digits());
         double newStopLoss = 0;
 
         if ((long)type == (long)ORDER_TYPE_BUY)
