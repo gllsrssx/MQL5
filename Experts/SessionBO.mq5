@@ -381,8 +381,8 @@ void CheckBreakouts(RANGE_STRUCT &range)
                 range.f_low_breakout = true;
 
             // calculate stop loss and take profit
-            double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.bid - deviation - ((range.high - range.low) * ((InpStopLoss + InpDeviation) * 0.01)), Digits());
-            double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.bid + deviation + ((range.high - range.low) * ((InpTakeProfit + InpDeviation) * 0.01)), Digits());
+            double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.bid - (deviation * 2) - ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
+            double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.bid + (deviation * 2) + ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
 
             range.rangeDistance = NormalizeDouble(MathAbs(range.high - range.low), Digits());
 
@@ -399,10 +399,10 @@ void CheckBreakouts(RANGE_STRUCT &range)
                 range.f_high_breakout = true;
 
             // calculate stop loss and take profit
-            double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.ask + deviation + ((range.high - range.low) * ((InpStopLoss + InpDeviation) * 0.01)), Digits());
-            double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.ask - deviation - ((range.high - range.low) * ((InpTakeProfit + InpDeviation) * 0.01)), Digits());
+            double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(lastTick.ask + (deviation * 2) + ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
+            double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(lastTick.ask - (deviation * 2) - ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
 
-            range.rangeDistance = NormalizeDouble(MathAbs(sl - lastTick.ask), Digits());
+            range.rangeDistance = NormalizeDouble(MathAbs(range.high - range.low), Digits());
 
             // open sell position
             if (InpTakeShorts)
