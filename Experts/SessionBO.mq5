@@ -86,20 +86,33 @@ CTrade trade;
 
 int OnInit()
 {
-    // if (TimeCurrent() < StringToTime("2024.04.01 00:00:00"))
-    // {
-    //     Print("This is a demo version of the EA. It will only work until April 1, 2024.");
-    // }
-    // else
-    // {
-    //     Print("This is a demo version of the EA. It will only work until April 1, 2024.");
-    //     ExpertRemove();
-    //     return INIT_FAILED;
-    // }
+    long accountNumbers[] = {11028867, 7216275, 7222732};
+    long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
+    if (ArrayBsearch(accountNumbers, accountNumber) == -1)
+    {
+        Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
+        ExpertRemove();
+        return INIT_FAILED;
+    }
+    else
+    {
+        Print("The account " + (string)accountNumber + " is authorized to use this EA.");
+    }
+    if (TimeCurrent() < StringToTime("2025.01.01 00:00:00"))
+    {
+        Print("This is a demo version of the EA. It will only work until January 1, 2025.");
+    }
+    else
+    {
+        Print("This is a demo version of the EA. It will only work until January 1, 2025.");
+        ExpertRemove();
+        return INIT_FAILED;
+    }
 
     // set magic number
     InpMagicNumber = rand();
 
+    // Adjust DST and timezone offset
     DSTAdjust();
 
     // check user inputs
