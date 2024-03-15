@@ -1,35 +1,35 @@
 #property copyright "Copyright 2023, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
 #property version "2.00"
+#property description "Session Breakout"
 #include <Trade\Trade.mqh>
 
 // Input parameters
-input group "========= General settings =========";
-input bool InpTakeLongs = true;  // long trades
-input bool InpTakeShorts = true; // short trades
+input group "========= Entry settings =========";
+input double InpLots = 1.0;      // Risk %
+input bool InpTakeLongs = true;  // Long trades
+input bool InpTakeShorts = true; // Short trades
+input int InpRangeDeviation = 5; // Entry deviation (0 = off)
 
-input group "========= Risk settings =========";
-input double InpLots = 1.0;             // Risk size
-input double InpRangeDeviation = 5;     // Range Deviation (0 = disabled)
-input int InpTakeProfit = 0;            // Take Profit in % of the range (0 = disabled)
+input group "========= Exit settings =========";
+input int InpTakeProfit = 0;            // TP % range (0 = off)
+input int InpStopLoss = 105;            // SL % range (0 = off)
+input int InpPercentBreakEven = 90;     // BE % SL (0 = off)
+input int InpPercentBreakEvenAdded = 5; // BE deviation (0 = off)
 
-input int InpStopLoss = 105;            // Stop Loss in % of the range (0 = disabled)
-input int InpPercentBreakEven = 90;     // sl% to break even (0 = disabled)
-input int InpPercentBreakEvenAdded = 5; // % added to break even (0 = disabled)
-
-input group "========= Range settings =========";
+input group "========= Time settings =========";
 input int InpTimezone = 3;           // Timezone
 input bool InpDaylightSaving = true; // DST zone
-input bool InpTokyoRange = true;     // London open
-input bool InpLondonRange = true;    // New York open
+input bool InpTokyoRange = true;     // Tokyo range
+input bool InpLondonRange = true;    // London range
 
-int InpRangeStartTokyo = 2 + InpTimezone;  // Range start time in hours
-int InpRangeStopTokyo = 6 + InpTimezone;   // Range stop time in hours
-int InpRangeCloseTokyo = 11 + InpTimezone; // Range close time in hours
+int InpRangeStartTokyo = 2;  // Range start time in hours
+int InpRangeStopTokyo = 6;   // Range stop time in hours
+int InpRangeCloseTokyo = 11; // Range close time in hours
 
-int InpRangeStartLondon = 7 + InpTimezone;  // Range start time in hours
-int InpRangeStopLondon = 11 + InpTimezone;  // Range stop time in hours
-int InpRangeCloseLondon = 16 + InpTimezone; // Range close time in hours
+int InpRangeStartLondon = 7;  // Range start time in hours
+int InpRangeStopLondon = 11;  // Range stop time in hours
+int InpRangeCloseLondon = 16; // Range close time in hours
 
 int TokyoRangeStart;
 int TokyoRangeDuration;
@@ -57,10 +57,10 @@ input bool InpThursday = true;  // Range on Thursday
 input bool InpFriday = true;    // Range on Friday
 
 input group "========= Color settings =========";
-input color colorRangeTokyo = clrAqua;       // Tokyo range color
-input color colorBreakoutTokyo = clrMagenta; // Tokyo breakout color
-input color colorRangeLondon = clrBlue;      // London range color
-input color colorBreakoutLondon = clrGold;   // London breakout color
+input color colorRangeTokyo = clrGreen;    // Tokyo range color
+input color colorBreakoutTokyo = clrRed;   // Tokyo breakout color
+input color colorRangeLondon = clrBlue;    // London range color
+input color colorBreakoutLondon = clrGold; // London breakout color
 
 struct RANGE_STRUCT
 {
@@ -100,7 +100,6 @@ int OnInit()
     // set magic number
     InpMagicNumber = rand();
 
-    // DST
     DSTAdjust();
 
     // check user inputs
@@ -128,9 +127,13 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
-    // delete all objects
+    Comment("");
+
     ObjectsDeleteAll(0, "Tokyo");
     ObjectsDeleteAll(0, "London");
+
+    ClosePositions(rangeTokyo);
+    ClosePositions(rangeLondon);
 }
 
 void OnTick()
@@ -184,6 +187,16 @@ bool CheckInputs()
     if (InpMonday + InpTuesday + InpWednesday + InpThursday + InpFriday == 0)
     {
         Alert("At least one day must be selected");
+        return false;
+    }
+    if (!InpTokyoRange && !InpLondonRange)
+    {
+        Alert("At least one session must be selected");
+        return false;
+    }
+    if (!InpTakeLongs && !InpTakeShorts)
+    {
+        Alert("At least one trade direction must be selected");
         return false;
     }
 
@@ -681,13 +694,12 @@ void BreakEven(RANGE_STRUCT &range)
 // function to get DST offset
 int DSTOffset()
 {
+    int offset = InpTimezone;
     if (!InpDaylightSaving)
-        return 0;
+        return offset;
+    ;
 
-    int offset = 0;
     string current_date = TimeToString(TimeCurrent(), TIME_DATE); // gets result as "yyyy.mm.dd",
-
-    // get month and day
     long month = StringToInteger(StringSubstr(current_date, 5, 2));
     long day = StringToInteger(StringSubstr(current_date, 8, 2));
 
@@ -699,15 +711,15 @@ int DSTOffset()
 
     if (month > DST_start_month && month < DST_end_month)
     {
-        offset = 1;
+        offset++;
     }
     else if (month == DST_start_month && day > DST_start_day)
     {
-        offset = 1;
+        offset++;
     }
     else if (month == DST_end_month && day < DST_end_day)
     {
-        offset = 1;
+        offset++;
     }
 
     return offset;
