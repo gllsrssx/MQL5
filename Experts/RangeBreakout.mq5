@@ -6,7 +6,7 @@
 #property copyright "Copyright 2023, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
 #property version "1.00"
-#property description "Range breakout trading strategy"
+#property description "Range breakout trading strategy, XAUUSD/EURUSD/USDJPY"
 
 #include <Trade\Trade.mqh>
 
@@ -15,21 +15,21 @@ input group "========= Entry settings =========";
 input double InpLots = 1.0;      // Risk %
 input bool InpTakeLongs = true;  // Long trades
 input bool InpTakeShorts = true; // Short trades
-input int InpDeviation = 1;      // Deviation (0 = off)
+input int InpDeviation = 0;      // Deviation (0 = off)
 
 input group "========= Exit settings =========";
 input int InpTakeProfit = 0;        // TP % range (0 = off)
-input int InpStopLoss = 102;        // SL % range (0 = off)
-input int InpPercentBreakEven = 90; // BE % range (0 = off)
+input int InpStopLoss = 100;        // SL % range (0 = off)
+input int InpPercentBreakEven = 100; // BE % range (0 = off)
 
 input group "========= Time settings =========";
 input int InpTimezone = 3;           // Timezone
 input bool InpDaylightSaving = true; // DST zone
 
 input group "========= Range settings =========";
-input int InpRangeStart = 0;  // Range start hour
-input int InpRangeStop = 3;   // Range stop hour
-input int InpRangeClose = 15; // Range close hour (0 = off)
+input int InpRangeStart = 6;  // Range start hour
+input int InpRangeStop = 10;   // Range stop hour
+input int InpRangeClose = 17; // Range close hour (0 = off)
 int rangeStart, rangeDuration, rangeClose;
 
 enum BREAKOUT_MODE_ENUM
@@ -563,7 +563,7 @@ double Volume()
 
 void BreakEven()
 {
-    if (InpPercentBreakEven == 0 && InpStopLoss == 0)
+    if (InpPercentBreakEven == 0 || InpStopLoss == 0)
         return;
 
     int total = PositionsTotal();
