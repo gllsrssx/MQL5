@@ -12,8 +12,8 @@ input bool InpTakeShorts = true; // Short trades
 input int InpDeviation = 5;      // Deviation (0 = off)
 
 input group "========= Exit settings =========";
-input int InpTakeProfit = 0;        // TP % range (0 = off)
-input int InpStopLoss = 100;        // SL % range (0 = off)
+input int InpTakeProfit = 0;         // TP % range (0 = off)
+input int InpStopLoss = 100;         // SL % range (0 = off)
 input int InpPercentBreakEven = 100; // BE % range (0 = off)
 
 input group "========= Time settings =========";
@@ -22,12 +22,12 @@ input bool InpDaylightSaving = true; // DST zone
 input bool InpTokyoRange = true;     // Tokyo range
 input bool InpLondonRange = true;    // London range
 
-input int InpRangeStartTokyo = 2;  // Range start time in hours
-input int InpRangeStopTokyo = 6;   // Range stop time in hours
-input int InpRangeCloseTokyo = 11; // Range close time in hours 
-input int InpRangeStartLondon = 8;  // Range start time in hours
-input int InpRangeStopLondon = 11;  // Range stop time in hours
-input int InpRangeCloseLondon = 17; // Range close time in hours
+int InpRangeStartTokyo = 3;   // Range start time in hours Tokyo
+int InpRangeStopTokyo = 6;    // Range stop time in hours Tokyo
+int InpRangeCloseTokyo = 10;  // Range close time in hours Tokyo
+int InpRangeStartLondon = 6;  // Range start time in hours London
+int InpRangeStopLondon = 10;  // Range stop time in hours London
+int InpRangeCloseLondon = 15; // Range close time in hours London
 
 int TokyoRangeStart;
 int TokyoRangeDuration;
@@ -179,7 +179,7 @@ bool CheckInputs()
         Alert("Range start must be less than range stop");
         return false;
     }
-    if(InpRangeStopTokyo >= InpRangeCloseTokyo || InpRangeStopLondon >= InpRangeCloseLondon)
+    if (InpRangeStopTokyo >= InpRangeCloseTokyo || InpRangeStopLondon >= InpRangeCloseLondon)
     {
         Alert("Range stop must be less than range close");
         return false;
@@ -682,7 +682,7 @@ void BreakEven(RANGE_STRUCT &range)
             continue;
 
         // calculate a new stop loss distance based on the InpPercentBreakEven percentage
-        double beDistance = NormalizeDouble((range.high-range.low) * (InpPercentBreakEven *0.01), Digits());
+        double beDistance = NormalizeDouble((range.high - range.low) * (InpPercentBreakEven * 0.01), Digits());
         double additionalDistance = NormalizeDouble(MathAbs(entry - stopLoss) * (InpDeviation * 0.01), Digits());
         double newStopLoss = 0;
 
@@ -713,7 +713,6 @@ int DSTOffset()
     int offset = InpTimezone;
     if (!InpDaylightSaving)
         return offset;
- 
 
     string current_date = TimeToString(TimeCurrent(), TIME_DATE); // gets result as "yyyy.mm.dd",
     long month = StringToInteger(StringSubstr(current_date, 5, 2));
