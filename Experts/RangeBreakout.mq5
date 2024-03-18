@@ -27,8 +27,8 @@ input int InpTimezone = 3;           // Timezone
 input bool InpDaylightSaving = true; // DST zone
 
 input group "========= Range settings =========";
-input int InpRangeStart = 3;  // Range start hour
-input int InpRangeStop = 6;   // Range stop hour
+input int InpRangeStart = 0;  // Range start hour
+input int InpRangeStop = 3;   // Range stop hour
 input int InpRangeClose = 15; // Range close hour (0 = off)
 int rangeStart, rangeDuration, rangeClose;
 
@@ -139,43 +139,15 @@ void OnTick()
     prevTick = lastTick;
     SymbolInfoTick(Symbol(), lastTick);
 
-    // range calculation
-    if (lastTick.time >= range.start_time && lastTick.time < range.end_time)
-    {
-        // set flag
-        range.f_entry = true;
+    // DST
+    DSTAdjust();
 
-        // new high
-        if (lastTick.ask > range.high)
-        {
-            range.high = lastTick.ask;
-            DrawObjects();
-        }
+    // get current tick
+    prevTick = lastTick;
+    SymbolInfoTick(Symbol(), lastTick);
 
-        // new low
-        if (lastTick.bid < range.low)
-        {
-            range.low = lastTick.bid;
-            DrawObjects();
-        }
-    }
-
-    // close position
-    if (rangeClose >= 0 && lastTick.time >= range.close_time)
-    {
-        if (!ClosePositions())
-            return;
-    }
-
-    // calculate new range if ...
-    if (((rangeClose >= 0 && lastTick.time >= range.close_time)                        // close time reached
-         || (range.f_high_breakout && range.f_low_breakout)                            // both breakout flags are true
-         || (range.end_time == 0)                                                      // range not calculated
-         || (range.end_time != 0 && lastTick.time > range.end_time && !range.f_entry)) // there was a range calculated but no tick inside
-        && CountOpenPositions() == 0)                                                  // no open positions
-    {
-        CalculateRange();
-    }
+    // check if we are in the range
+    RangeCheck();
 
     // check for breakouts
     CheckBreakouts();
@@ -187,17 +159,6 @@ void OnTick()
 // check user inputs
 bool CheckInputs()
 {
-    if (InpRangeStart >= InpRangeStop)
-    {
-        Alert("Range start time must be less than range stop time");
-        return false;
-    }
-    if (InpRangeStop >= InpRangeClose && InpRangeClose > 0)
-    {
-        Alert("Range stop time must be less than range close time");
-        return false;
-    }
-
     if (InpMagicNumber <= 0)
     {
         Alert("Magic number must be greater than zero");
@@ -252,10 +213,54 @@ bool CheckInputs()
     return true;
 }
 
+void RangeCheck()
+{
+    // range calculation
+    if (lastTick.time > range.start_time && lastTick.time < range.end_time)
+    {
+        // set flag
+        range.f_entry = true;
+
+        // new high
+        if (lastTick.ask > range.high)
+        {
+            range.high = lastTick.ask;
+            DrawObjects();
+        }
+        // new low
+        if (lastTick.bid < range.low)
+        {
+            range.low = lastTick.bid;
+            DrawObjects();
+        }
+    }
+
+    if (lastTick.time > range.end_time && lastTick.time < range.close_time)
+    {
+        BreakEven();
+    }
+
+    // close position
+    if (rangeClose >= 0 && lastTick.time > range.close_time)
+    {
+        if (!ClosePositions())
+            return;
+    }
+
+    // calculate new range if ...
+    if (((rangeClose >= 0 && lastTick.time > range.close_time)                         // close time reached
+         || (range.f_high_breakout && range.f_low_breakout)                            // both breakout flags are true
+         || (range.end_time == 0)                                                      // range not calculated
+         || (range.end_time != 0 && lastTick.time > range.end_time && !range.f_entry)) // there was a range calculated but no tick inside
+        && CountOpenPositions() == 0)                                                  // no open positions
+    {
+        CalculateRange();
+    }
+}
+
 // calculate a new range
 void CalculateRange()
 {
-
     // reset range variables
     range.start_time = 0;
     range.end_time = 0;
@@ -269,6 +274,8 @@ void CalculateRange()
     // calculate range start time
     int time_cycle = 86400;
     range.start_time = (lastTick.time - (lastTick.time % time_cycle)) + rangeStart * 60;
+    if (lastTick.time >= range.start_time)
+        range.start_time += time_cycle;
     for (int i = 0; i < 8; i++)
     {
         MqlDateTime tmp;
@@ -282,6 +289,8 @@ void CalculateRange()
 
     // calculate range end time
     range.end_time = range.start_time + rangeDuration * 60;
+    if (lastTick.time >= range.end_time)
+        range.end_time += time_cycle;
     for (int i = 0; i < 2; i++)
     {
         MqlDateTime tmp;
@@ -297,6 +306,8 @@ void CalculateRange()
     if (rangeClose >= 0)
     {
         range.close_time = (range.end_time - (range.end_time % time_cycle)) + rangeClose * 60;
+        if (range.close_time <= range.end_time)
+            range.close_time += time_cycle;
         for (int i = 0; i < 3; i++)
         {
             MqlDateTime tmp;

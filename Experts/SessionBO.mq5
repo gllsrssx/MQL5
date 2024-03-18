@@ -290,7 +290,6 @@ void CalculateRange(RANGE_STRUCT &range, int RangeStart, int RangeDuration, int 
     range.start_time = (lastTick.time - (lastTick.time % time_cycle)) + RangeStart * 60;
     if (lastTick.time >= range.start_time)
         range.start_time += time_cycle;
-
     for (int i = 0; i < 8; i++)
     {
         MqlDateTime tmp;
