@@ -6,7 +6,11 @@
     "*.ejs": "html",
     "*.mqh": "cpp",
     "*.mq5": "cpp",
-    "xutility": "cpp"
+    "xutility": "cpp",
+    "string": "cpp",
+    "type_traits": "cpp",
+    "xmemory": "cpp",
+    "xstring": "cpp"
   },
   "C_Cpp.errorSquiggles": "disabled"
 }

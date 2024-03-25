@@ -18,8 +18,8 @@ input bool InpTakeShorts = true; // Short trades
 input int InpDeviation = 0;      // Deviation (0 = off)
 
 input group "========= Exit settings =========";
-input int InpTakeProfit = 0;        // TP % range (0 = off)
-input int InpStopLoss = 100;        // SL % range (0 = off)
+input int InpTakeProfit = 0;         // TP % range (0 = off)
+input int InpStopLoss = 100;         // SL % range (0 = off)
 input int InpPercentBreakEven = 100; // BE % range (0 = off)
 
 input group "========= Time settings =========";
@@ -28,7 +28,7 @@ input bool InpDaylightSaving = true; // DST zone
 
 input group "========= Range settings =========";
 input int InpRangeStart = 6;  // Range start hour
-input int InpRangeStop = 10;   // Range stop hour
+input int InpRangeStop = 10;  // Range stop hour
 input int InpRangeClose = 17; // Range close hour (0 = off)
 int rangeStart, rangeDuration, rangeClose;
 
@@ -73,7 +73,7 @@ long InpMagicNumber;
 
 int OnInit()
 {
-    long accountNumbers[] = {11028867, 7216275, 7222732};
+    long accountNumbers[] = {11028867, 7216275, 7222732, 10000973723};
     long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
     if (ArrayBsearch(accountNumbers, accountNumber) == -1)
     {
@@ -132,13 +132,6 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
-    // DST
-    DSTAdjust();
-
-    // get current tick
-    prevTick = lastTick;
-    SymbolInfoTick(Symbol(), lastTick);
-
     // DST
     DSTAdjust();
 
