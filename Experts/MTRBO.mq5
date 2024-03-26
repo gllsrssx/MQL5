@@ -10,7 +10,7 @@
 // Input parameters
 input bool fixedRisk = false; // fixed risk
 input group "========= Symbol settings =========";
-input string InpSymbol = "XAUUSD, EURUSD, USDJPY"; // Symbol
+input string InpSymbol = "EURUSD, USDJPY, XAUUSD"; // Symbol
 string symbols[];
 
 input group "========= Entry settings =========";
@@ -130,7 +130,6 @@ int OnInit()
       Alert("Symbol " + symbol + " is not in market watch");
       return INIT_FAILED;
     }
-
     RANGE_STRUCT range;
     range.symbol = symbol; // set range.symbol to the symbol
     // initialize other range members here...
@@ -153,11 +152,8 @@ int OnInit()
 void OnDeinit(const int reason)
 {
   Comment("");
-
-  ObjectsDeleteAll(0, "Range");
-
+  ObjectsDeleteAll(NULL);
   ClosePositions();
-
   Print("\n" + InpSymbol + " | " + Profit() + " | " + DrawDown() + "\n");
 }
 
@@ -173,16 +169,12 @@ void OnTick()
 
   // check if we are in the range
   RangeCheck();
-
   // check for breakouts
   CheckBreakouts();
-
   // breakeven
   BreakEven();
-
   // DST
   DSTAdjust();
-
   // stats
   Stats();
 }
@@ -507,6 +499,17 @@ bool ClosePositions()
   return true;
 }
 
+void DrawTrendLine(string name, datetime x1, double y1, datetime x2, double y2, color clr, int width, int style, bool back, string tooltip)
+{
+  ObjectDelete(NULL, name);
+  ObjectCreate(NULL, name, OBJ_TREND, 0, x1, y1, x2, y2);
+  ObjectSetInteger(NULL, name, OBJPROP_COLOR, clr);
+  ObjectSetInteger(NULL, name, OBJPROP_WIDTH, width);
+  ObjectSetInteger(NULL, name, OBJPROP_STYLE, style);
+  ObjectSetInteger(NULL, name, OBJPROP_BACK, back);
+  ObjectSetString(NULL, name, OBJPROP_TOOLTIP, tooltip);
+}
+
 // draw chart objects
 void DrawObjects()
 {
@@ -515,76 +518,22 @@ void DrawObjects()
     RANGE_STRUCT range = ranges[r];
     if (range.symbol != Symbol())
       continue;
-    // start time
-    string nameStart = "range start " + TimeToString(range.start_time, TIME_DATE);
-    ObjectDelete(NULL, nameStart);
+
     if (range.start_time > 0)
-    {
-      ObjectCreate(NULL, nameStart, OBJ_TREND, 0, range.start_time, range.high, range.start_time, range.low);
-      ObjectSetString(NULL, nameStart, OBJPROP_TOOLTIP, nameStart);
-      ObjectSetInteger(NULL, nameStart, OBJPROP_COLOR, InpColorRange);
-      ObjectSetInteger(NULL, nameStart, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(NULL, nameStart, OBJPROP_BACK, true);
-    }
-
-    // end time
-    string nameEnd = "range end " + TimeToString(range.end_time, TIME_DATE);
-    ObjectDelete(NULL, nameEnd);
+      DrawTrendLine("range start " + TimeToString(range.start_time, TIME_DATE), range.start_time, range.high, range.start_time, range.low, InpColorRange, 2, STYLE_SOLID, true, TimeToString(range.start_time, TIME_MINUTES));
     if (range.end_time > 0)
-    {
-      ObjectCreate(NULL, nameEnd, OBJ_TREND, 0, range.end_time, range.high, range.end_time, range.low);
-      ObjectSetString(NULL, nameEnd, OBJPROP_TOOLTIP, nameEnd);
-      ObjectSetInteger(NULL, nameEnd, OBJPROP_COLOR, InpColorRange);
-      ObjectSetInteger(NULL, nameEnd, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(NULL, nameEnd, OBJPROP_BACK, true);
-    }
-
-    // close time
-    string nameClose = "range close " + TimeToString(range.close_time, TIME_DATE);
-    ObjectDelete(NULL, nameClose);
+      DrawTrendLine("range end " + TimeToString(range.end_time, TIME_DATE), range.end_time, range.high, range.end_time, range.low, InpColorRange, 2, STYLE_SOLID, true, TimeToString(range.end_time, TIME_MINUTES));
     if (range.close_time > 0)
-    {
-      ObjectCreate(NULL, nameClose, OBJ_TREND, 0, range.close_time, range.high, range.close_time, range.low);
-      ObjectSetString(NULL, nameClose, OBJPROP_TOOLTIP, nameClose);
-      ObjectSetInteger(NULL, nameClose, OBJPROP_COLOR, InpColorBreakout);
-      ObjectSetInteger(NULL, nameClose, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(NULL, nameClose, OBJPROP_BACK, true);
-    }
-
-    // high
-    string nameHigh = "range high " + TimeToString(range.end_time, TIME_DATE);
-    ObjectsDeleteAll(NULL, nameHigh);
+      DrawTrendLine("range close " + TimeToString(range.close_time, TIME_DATE), range.close_time, range.high, range.close_time, range.low, InpColorBreakout, 2, STYLE_SOLID, true, TimeToString(range.close_time, TIME_MINUTES));
     if (range.high > 0)
     {
-      ObjectCreate(NULL, nameHigh, OBJ_TREND, 0, range.start_time, range.high, range.end_time, range.high);
-      ObjectSetString(NULL, nameHigh, OBJPROP_TOOLTIP, nameHigh);
-      ObjectSetInteger(NULL, nameHigh, OBJPROP_COLOR, InpColorRange);
-      ObjectSetInteger(NULL, nameHigh, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(NULL, nameHigh, OBJPROP_BACK, true);
-
-      ObjectCreate(NULL, " " + nameHigh, OBJ_TREND, 0, range.end_time, range.high, rangeClose >= 0 ? range.close_time : INT_MAX, range.high);
-      ObjectSetString(NULL, " " + nameHigh, OBJPROP_TOOLTIP, nameHigh + " " + (string)range.high);
-      ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_COLOR, InpColorBreakout);
-      ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_STYLE, STYLE_DOT);
-      ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_BACK, true);
+      DrawTrendLine("range high " + TimeToString(range.end_time, TIME_DATE), range.start_time, range.high, range.end_time, range.high, InpColorRange, 2, STYLE_SOLID, true, DoubleToString(range.high, Digits()));
+      DrawTrendLine(" range high " + TimeToString(range.end_time, TIME_DATE), range.end_time, range.high, rangeClose >= 0 ? range.close_time : INT_MAX, range.high, InpColorBreakout, 2, STYLE_DOT, true, DoubleToString(range.high, Digits()));
     }
-
-    // low
-    string nameLow = "range low " + TimeToString(range.end_time, TIME_DATE);
-    ObjectsDeleteAll(NULL, nameLow);
     if (range.low < DBL_MAX)
     {
-      ObjectCreate(NULL, nameLow, OBJ_TREND, 0, range.start_time, range.low, range.end_time, range.low);
-      ObjectSetString(NULL, nameLow, OBJPROP_TOOLTIP, nameLow);
-      ObjectSetInteger(NULL, nameLow, OBJPROP_COLOR, InpColorRange);
-      ObjectSetInteger(NULL, nameLow, OBJPROP_WIDTH, 2);
-      ObjectSetInteger(NULL, nameLow, OBJPROP_BACK, true);
-
-      ObjectCreate(NULL, " " + nameLow, OBJ_TREND, 0, range.end_time, range.low, rangeClose >= 0 ? range.close_time : INT_MAX, range.low);
-      ObjectSetString(NULL, " " + nameLow, OBJPROP_TOOLTIP, nameLow + " " + (string)range.low);
-      ObjectSetInteger(NULL, " " + nameLow, OBJPROP_COLOR, InpColorBreakout);
-      ObjectSetInteger(NULL, " " + nameLow, OBJPROP_STYLE, STYLE_DOT);
-      ObjectSetInteger(NULL, " " + nameLow, OBJPROP_BACK, true);
+      DrawTrendLine("range low " + TimeToString(range.end_time, TIME_DATE), range.start_time, range.low, range.end_time, range.low, InpColorRange, 2, STYLE_SOLID, true, DoubleToString(range.low, Digits()));
+      DrawTrendLine(" range low " + TimeToString(range.end_time, TIME_DATE), range.end_time, range.low, rangeClose >= 0 ? range.close_time : INT_MAX, range.low, InpColorBreakout, 2, STYLE_DOT, true, DoubleToString(range.low, Digits()));
     }
 
     // refresh chart
@@ -634,7 +583,6 @@ void BreakEven()
     {
       Print("Failed to select position by ticket");
       continue;
-      ;
     }
     long magic;
     if (!PositionGetInteger(POSITION_MAGIC, magic))
@@ -643,8 +591,6 @@ void BreakEven()
       continue;
     }
     if (magic != InpMagicNumber)
-      continue;
-    if (InpMagicNumber != magic)
       continue;
     string symbol;
     if (!PositionGetString(POSITION_SYMBOL, symbol))
@@ -751,6 +697,7 @@ void DSTAdjust()
 {
   if (!IsNewBar(PERIOD_D1))
     return;
+
   // get DST offset
   DSToffset = DSTOffset();
 
@@ -806,6 +753,7 @@ void Stats()
 {
   if (!IsNewBarStats(PERIOD_D1))
     return;
+
   string stats = "\n" + InpSymbol + " | " + Profit() + " | " + DrawDown() + "\n";
   Comment(stats);
   Print(stats);
