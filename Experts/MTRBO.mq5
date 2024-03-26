@@ -8,6 +8,7 @@
 #include <Strings\String.mqh>
 
 // Input parameters
+input bool fixedRisk = false; // fixed risk
 input group "========= Symbol settings =========";
 input string InpSymbol = "XAUUSD, EURUSD, USDJPY"; // Symbol
 string symbols[];
@@ -156,6 +157,8 @@ void OnDeinit(const int reason)
   ObjectsDeleteAll(0, "Range");
 
   ClosePositions();
+
+  Print("\n" + InpSymbol + " | " + Profit() + " | " + DrawDown() + "\n");
 }
 
 void OnTick()
@@ -179,6 +182,9 @@ void OnTick()
 
   // DST
   DSTAdjust();
+
+  // stats
+  Stats();
 }
 
 // check user inputs
@@ -498,7 +504,6 @@ bool ClosePositions()
       }
     }
   }
-
   return true;
 }
 
@@ -558,7 +563,7 @@ void DrawObjects()
       ObjectSetInteger(NULL, nameHigh, OBJPROP_BACK, true);
 
       ObjectCreate(NULL, " " + nameHigh, OBJ_TREND, 0, range.end_time, range.high, rangeClose >= 0 ? range.close_time : INT_MAX, range.high);
-      ObjectSetString(NULL, " " + nameHigh, OBJPROP_TOOLTIP, nameHigh);
+      ObjectSetString(NULL, " " + nameHigh, OBJPROP_TOOLTIP, nameHigh + " " + (string)range.high);
       ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_COLOR, InpColorBreakout);
       ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_STYLE, STYLE_DOT);
       ObjectSetInteger(NULL, " " + nameHigh, OBJPROP_BACK, true);
@@ -576,7 +581,7 @@ void DrawObjects()
       ObjectSetInteger(NULL, nameLow, OBJPROP_BACK, true);
 
       ObjectCreate(NULL, " " + nameLow, OBJ_TREND, 0, range.end_time, range.low, rangeClose >= 0 ? range.close_time : INT_MAX, range.low);
-      ObjectSetString(NULL, " " + nameLow, OBJPROP_TOOLTIP, nameLow);
+      ObjectSetString(NULL, " " + nameLow, OBJPROP_TOOLTIP, nameLow + " " + (string)range.low);
       ObjectSetInteger(NULL, " " + nameLow, OBJPROP_COLOR, InpColorBreakout);
       ObjectSetInteger(NULL, " " + nameLow, OBJPROP_STYLE, STYLE_DOT);
       ObjectSetInteger(NULL, " " + nameLow, OBJPROP_BACK, true);
@@ -589,11 +594,14 @@ void DrawObjects()
 
 double Volume(RANGE_STRUCT &range)
 {
+  double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  if (fixedRisk)
+    balance = startCapital;
   double slDistance = (range.high - range.low) * InpStopLoss * 0.01;
   double tickSize = SymbolInfoDouble(range.symbol, SYMBOL_TRADE_TICK_SIZE);
   double tickValue = SymbolInfoDouble(range.symbol, SYMBOL_TRADE_TICK_VALUE);
   double lotStep = SymbolInfoDouble(range.symbol, SYMBOL_VOLUME_STEP);
-  double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpLots / 100;
+  double riskMoney = balance * InpLots / 100;
   double moneyLotStep = (slDistance / tickSize) * tickValue * lotStep;
   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
   double minVol = SymbolInfoDouble(range.symbol, SYMBOL_VOLUME_MIN);
@@ -741,6 +749,8 @@ int DSTOffset()
 
 void DSTAdjust()
 {
+  if (!IsNewBar(PERIOD_D1))
+    return;
   // get DST offset
   DSToffset = DSTOffset();
 
@@ -748,4 +758,78 @@ void DSTAdjust()
   rangeStart = (InpRangeStart + DSToffset) * 60;       // Range start time in minutes
   rangeDuration = (InpRangeStop - InpRangeStart) * 60; // Range duration in minutes
   rangeClose = (InpRangeClose + DSToffset) * 60;       // Range close time in minutes
+}
+
+double realBalance;
+double maxDrawdown;
+string DrawDown()
+{
+  string result = "";
+  double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  if (balance > realBalance)
+    realBalance = balance;
+  double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+  double drawdown = 100 - equity / realBalance * 100;
+  if (drawdown > maxDrawdown)
+    maxDrawdown = drawdown;
+  maxDrawdown = NormalizeDouble(maxDrawdown, 2);
+  if (maxDrawdown == 0)
+    return result;
+  return "Drawdown: " + (string)maxDrawdown + "%";
+  return result;
+}
+
+datetime startDate = TimeCurrent();
+double startCapital = AccountInfoDouble(ACCOUNT_BALANCE);
+string Profit()
+{
+  string result = "";
+  double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  double profit = balance - startCapital;
+  double profitPercent = profit / startCapital * 100;
+  datetime endDate = TimeCurrent();
+  int days = (int)(endDate - startDate) / 86400;
+  int tradingDays = days * 5 / 7;
+  double profitPerDay = profitPercent / tradingDays;
+  double profitPerMonth = profitPerDay * 20;
+  profitPercent = NormalizeDouble(profitPercent, 2);
+  profitPerDay = NormalizeDouble(profitPerDay, 2);
+  profitPerMonth = NormalizeDouble(profitPerMonth, 2);
+  result = "Profit: " + (string)profitPercent + "%";
+  if (tradingDays > 0)
+    result += " | Profit per day: " + (string)profitPerDay + "%";
+  if (tradingDays > 20)
+    result += " | Profit per month: " + (string)profitPerMonth + "%";
+  return result;
+}
+void Stats()
+{
+  if (!IsNewBarStats(PERIOD_D1))
+    return;
+  string stats = "\n" + InpSymbol + " | " + Profit() + " | " + DrawDown() + "\n";
+  Comment(stats);
+  Print(stats);
+}
+
+bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
+{
+  static int barsTotal;
+  int bars = iBars(Symbol(), timeFrame);
+  if (bars > barsTotal)
+  {
+    barsTotal = bars;
+    return true;
+  }
+  return false;
+}
+bool IsNewBarStats(ENUM_TIMEFRAMES timeFrame)
+{
+  static int barsTotal;
+  int bars = iBars(Symbol(), timeFrame);
+  if (bars > barsTotal)
+  {
+    barsTotal = bars;
+    return true;
+  }
+  return false;
 }
