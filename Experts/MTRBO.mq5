@@ -10,7 +10,7 @@
 // Input parameters
 input bool fixedRisk = false; // fixed risk
 input group "========= Symbol settings =========";
-input string InpSymbol = "EURUSD, USDJPY, XAUUSD"; // Symbol
+input string InpSymbol = "AUDUSD, EURUSD, GBPUSD, USDCAD, USDCHF, USDJPY, XAUUSD"; // Symbol
 string symbols[];
 
 input group "========= Entry settings =========";
@@ -416,8 +416,8 @@ void CheckBreakouts()
           range.f_low_breakout = true;
 
         // calculate stop loss and take profit
-        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.bid - ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
-        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.bid + ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
+        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.ask - ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
+        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.ask + ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
         double slDistance = (range.high - range.low) * (InpStopLoss * 0.01);
 
         // open buy position
@@ -433,8 +433,8 @@ void CheckBreakouts()
           range.f_high_breakout = true;
 
         // calculate stop loss and take profit
-        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.ask + ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
-        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.ask - ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
+        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.bid + ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
+        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.bid - ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
         double slDistance = (range.high - range.low) * (InpStopLoss * 0.01);
 
         // open sell position
@@ -647,7 +647,7 @@ void BreakEven()
         newStopLoss = entry - additionalDistance;
       }
 
-      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.bid > entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.ask < entry - beDistance))
+      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.bid >= entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.ask <= entry - beDistance))
       {
         if ((long)type == (long)ORDER_TYPE_BUY)
           trade.PositionModify(ticket, newStopLoss, takeProfit);

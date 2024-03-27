@@ -12,6 +12,7 @@
 
 // Input parameters
 input group "========= Entry settings =========";
+input bool fixedRisdk=false; //fixed risk
 input double InpLots = 1.0;      // Risk %
 input bool InpTakeLongs = true;  // Long trades
 input bool InpTakeShorts = true; // Short trades
@@ -528,13 +529,16 @@ void DrawObjects()
     ChartRedraw();
 }
 
+double startBalance = AccountInfoDouble(ACCOUNT_BALANCE);
 double Volume()
 {
+   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+   if(fixedRisdk) balance = startBalance;
     double slDistance = (range.high - range.low) * InpStopLoss * 0.01;
     double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
     double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
     double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-    double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpLots / 100;
+    double riskMoney = balance * InpLots / 100;
     double moneyLotStep = (slDistance / tickSize) * tickValue * lotStep;
     double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
     double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
