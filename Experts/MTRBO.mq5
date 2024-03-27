@@ -647,7 +647,7 @@ void BreakEven()
         newStopLoss = entry - additionalDistance;
       }
 
-      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.bid >= entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.ask <= entry - beDistance))
+      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.ask >= entry + beDistance && range.lastTick.bid > entry) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.bid <= entry - beDistance && range.lastTick.ask < entry))
       {
         if ((long)type == (long)ORDER_TYPE_BUY)
           trade.PositionModify(ticket, newStopLoss, takeProfit);
