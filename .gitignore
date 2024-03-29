@@ -1,11 +1,14 @@
-/Logs
-/Services
-/Shared 
 /.vscode
 /Files
 /Images
-/Profiles
+/Logs
+/Profiles/Charts\Default
+/Profiles/Community
+/Profiles/SymbolSets
+/Profiles/Templates/fxtool.set
+/Profiles/Templates/tfx.set
+/Profiles/Tester
 /Scripts
+/Services
 /Shared Projects
 experts.dat
-Experts.dat
