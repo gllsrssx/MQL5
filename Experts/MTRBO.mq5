@@ -403,43 +403,43 @@ void CheckBreakouts()
   {
     RANGE_STRUCT range = ranges[r];
     // Calculate the deviation
-    double deviation = (range.high - range.low) * (InpDeviation * 0.01);
+    double deviation = (range.high - range.low) * InpDeviation * 0.01;
 
     // check if we are after the range end
     if (range.lastTick.time >= range.end_time && range.end_time > 0 && range.f_entry)
     {
       // check for high breakout
-      if (!range.f_high_breakout && range.lastTick.ask >= (range.high + deviation) && InpTakeLongs)
+      if (!range.f_high_breakout && range.lastTick.bid >= (range.high + deviation) && InpTakeLongs)
       {
         range.f_high_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
           range.f_low_breakout = true;
 
         // calculate stop loss and take profit
-        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.ask - ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
-        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.ask + ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
-        double slDistance = (range.high - range.low) * (InpStopLoss * 0.01);
+        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.ask - ((range.lastTick.ask - range.low) * InpStopLoss * 0.01), Digits());
+        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.ask + ((range.lastTick.ask - range.low) * (InpTakeProfit * 0.01)), Digits());
+        double slDistance = (range.lastTick.ask - range.low) * InpStopLoss * 0.01;
 
         // open buy position
         if (InpTakeLongs)
-          trade.PositionOpen(range.symbol, ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range), range.lastTick.ask, sl, tp, "Breakout ");
+          trade.PositionOpen(range.symbol, ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.ask, sl, tp, "Breakout ");
       }
 
       // check for low breakout
-      if (!range.f_low_breakout && range.lastTick.bid <= (range.low - deviation) && InpTakeShorts)
+      if (!range.f_low_breakout && range.lastTick.ask <= (range.low - deviation) && InpTakeShorts)
       {
         range.f_low_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
           range.f_high_breakout = true;
 
         // calculate stop loss and take profit
-        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.bid + ((range.high - range.low) * (InpStopLoss * 0.01)), Digits());
-        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.bid - ((range.high - range.low) * (InpTakeProfit * 0.01)), Digits());
-        double slDistance = (range.high - range.low) * (InpStopLoss * 0.01);
+        double sl = InpStopLoss == 0 ? 0 : NormalizeDouble(range.lastTick.bid + ((range.high - range.lastTick.bid) * (InpStopLoss * 0.01)), Digits());
+        double tp = InpTakeProfit == 0 ? 0 : NormalizeDouble(range.lastTick.bid - ((range.high - range.lastTick.bid) * (InpTakeProfit * 0.01)), Digits());
+        double slDistance = (range.high - range.lastTick.bid) * InpStopLoss * 0.01;
 
         // open sell position
         if (InpTakeShorts)
-          trade.PositionOpen(range.symbol, ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range), range.lastTick.bid, sl, tp, "Breakout ");
+          trade.PositionOpen(range.symbol, ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.bid, sl, tp, "Breakout ");
       }
     }
     ranges[r] = range;
@@ -541,20 +541,19 @@ void DrawObjects()
   }
 }
 
-double Volume(RANGE_STRUCT &range)
+double Volume(string symbol, double slDistance)
 {
   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
   if (fixedRisk)
     balance = startCapital;
-  double slDistance = (range.high - range.low) * InpStopLoss * 0.01;
-  double tickSize = SymbolInfoDouble(range.symbol, SYMBOL_TRADE_TICK_SIZE);
-  double tickValue = SymbolInfoDouble(range.symbol, SYMBOL_TRADE_TICK_VALUE);
-  double lotStep = SymbolInfoDouble(range.symbol, SYMBOL_VOLUME_STEP);
+  double tickSize = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_SIZE);
+  double tickValue = SymbolInfoDouble(symbol, SYMBOL_TRADE_TICK_VALUE);
+  double lotStep = SymbolInfoDouble(symbol, SYMBOL_VOLUME_STEP);
   double riskMoney = balance * InpLots / 100;
   double moneyLotStep = (slDistance / tickSize) * tickValue * lotStep;
   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
-  double minVol = SymbolInfoDouble(range.symbol, SYMBOL_VOLUME_MIN);
-  double maxVol = SymbolInfoDouble(range.symbol, SYMBOL_VOLUME_MAX);
+  double minVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MIN);
+  double maxVol = SymbolInfoDouble(symbol, SYMBOL_VOLUME_MAX);
 
   if (lots < minVol)
   {
@@ -647,7 +646,7 @@ void BreakEven()
         newStopLoss = entry - additionalDistance;
       }
 
-      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.ask >= entry + beDistance && range.lastTick.bid > entry) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.bid <= entry - beDistance && range.lastTick.ask < entry))
+      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.bid >= entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.ask <= entry - beDistance))
       {
         if ((long)type == (long)ORDER_TYPE_BUY)
           trade.PositionModify(ticket, newStopLoss, takeProfit);
