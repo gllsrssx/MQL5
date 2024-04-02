@@ -54,19 +54,35 @@ input group "========= Color settings =========";
 input color InpColorRange = clrGreen;  // range color
 input color InpColorBreakout = clrRed; // breakout color
 
+input group "========= Filter settings =========";
+input int InpMaPeriod = 120; // EMA period (0 = off)
+enum MA_FILTER_MODE_ENUM
+{
+  // no filter, filter in direction of trend, filter against trend, filter in direction of trend and against trend
+  NO_FILTER,
+  TREND_FILTER,
+  COUNTER_TREND_FILTER,
+  TREND_AND_COUNTER_TREND_FILTER
+};
+input MA_FILTER_MODE_ENUM InpMaFilterMode = NO_FILTER; // MA Filter mode
+
 struct RANGE_STRUCT
 {
-  string symbol;        // symbol
-  datetime start_time;  // start of the range
-  datetime end_time;    // end of the range
-  datetime close_time;  // close of the range
-  MqlTick prevTick;     // previous tick
-  MqlTick lastTick;     // last tick
-  double high;          // high of the range
-  double low;           // low of the range
-  bool f_entry;         // flag if we are in the range
-  bool f_high_breakout; // flag if a high breakout occured
-  bool f_low_breakout;  // flag if a low breakout occured
+  string symbol;                      // symbol
+  datetime start_time;                // start of the range
+  datetime end_time;                  // end of the range
+  datetime close_time;                // close of the range
+  MqlTick prevTick;                   // previous tick
+  MqlTick lastTick;                   // last tick
+  double high;                        // high of the range
+  double low;                         // low of the range
+  bool f_entry;                       // flag if we are in the range
+  bool f_high_breakout;               // flag if a high breakout occured
+  bool f_low_breakout;                // flag if a low breakout occured
+  int maHandle;                       // EMA handle
+  int maDirection;                    // EMA direction
+  int lastMaDirection;                // last EMA direction
+  int periodSinceLastDirectionChange; // period since last EMA direction change
 
   RANGE_STRUCT() : symbol(""), start_time(0), end_time(0), close_time(0), high(0.0), low(DBL_MAX), f_entry(false), f_high_breakout(false), f_low_breakout(false) {}
 };
@@ -133,6 +149,8 @@ int OnInit()
     RANGE_STRUCT range;
     range.symbol = symbol; // set range.symbol to the symbol
     // initialize other range members here...
+    if (InpMaPeriod > 0)
+      range.maHandle = iMA(symbol, 0, InpMaPeriod, 0, MODE_EMA, PRICE_CLOSE);
     // Add the range to the ranges array
     ranges[i] = range;
   }
@@ -167,6 +185,8 @@ void OnTick()
     ranges[r] = range;
   }
 
+  // ma
+  MA();
   // check if we are in the range
   RangeCheck();
   // check for breakouts
@@ -234,6 +254,68 @@ bool CheckInputs()
   }
 
   return true;
+}
+
+void MA()
+{
+  if (InpMaPeriod <= 0 || InpMaFilterMode == NO_FILTER)
+    return;
+
+  static int barsTotal;
+  int bars = iBars(Symbol(), Period());
+  if (barsTotal >= bars)
+    return;
+  barsTotal = bars;
+
+  for (int r = 0; r < ArraySize(ranges); r++)
+  {
+    RANGE_STRUCT range = ranges[r];
+
+    double ma[];
+    ArraySetAsSeries(ma, true);
+    CopyBuffer(range.maHandle, MAIN_LINE, 0, barsTotal, ma);
+
+    double high = iHigh(range.symbol, 0, 0);
+    double low = iLow(range.symbol, 0, 0);
+
+    int newMaDirection = 0;
+    if (low > ma[0])
+      newMaDirection = 1;
+    if (high < ma[0])
+      newMaDirection = -1;
+   
+    if (newMaDirection != range.lastMaDirection)
+    {
+      range.periodSinceLastDirectionChange = 1;
+      range.lastMaDirection = newMaDirection;
+    }
+    else
+    {
+      range.periodSinceLastDirectionChange++;
+    }
+
+    int changePeriod = InpMaPeriod / 5;
+    if (range.periodSinceLastDirectionChange >= changePeriod)
+    {
+      range.maDirection = newMaDirection;
+    }
+    else
+    {
+      range.maDirection = 0;
+    }
+    ranges[r] = range;
+
+    // draw ma
+    if (range.symbol != Symbol())
+      continue;
+
+    ObjectCreate(0, "Ma " + (string)range.lastTick.time, OBJ_TREND, 0, range.lastTick.time, ma[0], range.prevTick.time, ma[1]);
+    ObjectSetInteger(0, "Ma " + (string)range.lastTick.time, OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "Ma " + (string)range.lastTick.time, OBJPROP_WIDTH, 4);
+    ObjectSetInteger(0, "Ma " + (string)range.lastTick.time, OBJPROP_BACK, true);
+    ObjectSetInteger(0, "Ma " + (string)range.lastTick.time, OBJPROP_COLOR, range.maDirection == 1 ? clrGreen : range.maDirection == -1 ? clrRed
+                                                                                                                                        : clrGold);
+  }
 }
 
 void RangeCheck()
@@ -409,7 +491,7 @@ void CheckBreakouts()
     if (range.lastTick.time >= range.end_time && range.end_time > 0 && range.f_entry)
     {
       // check for high breakout
-      if (!range.f_high_breakout && range.lastTick.bid >= (range.high + deviation) && InpTakeLongs)
+      if (!range.f_high_breakout && range.lastTick.last >= (range.high + deviation) && InpTakeLongs)
       {
         range.f_high_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
@@ -421,12 +503,12 @@ void CheckBreakouts()
         double slDistance = (range.lastTick.ask - range.low) * InpStopLoss * 0.01;
 
         // open buy position
-        if (InpTakeLongs)
+        if (InpTakeLongs && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == TREND_AND_COUNTER_TREND_FILTER && range.maDirection != 0)))
           trade.PositionOpen(range.symbol, ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.ask, sl, tp, "Breakout ");
       }
 
       // check for low breakout
-      if (!range.f_low_breakout && range.lastTick.ask <= (range.low - deviation) && InpTakeShorts)
+      if (!range.f_low_breakout && range.lastTick.last <= (range.low - deviation) && InpTakeShorts)
       {
         range.f_low_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
@@ -438,7 +520,7 @@ void CheckBreakouts()
         double slDistance = (range.high - range.lastTick.bid) * InpStopLoss * 0.01;
 
         // open sell position
-        if (InpTakeShorts)
+        if (InpTakeShorts && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == TREND_AND_COUNTER_TREND_FILTER && range.maDirection != 0)))
           trade.PositionOpen(range.symbol, ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.bid, sl, tp, "Breakout ");
       }
     }
@@ -646,7 +728,7 @@ void BreakEven()
         newStopLoss = entry - additionalDistance;
       }
 
-      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.bid >= entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.ask <= entry - beDistance))
+      if (((long)type == (long)ORDER_TYPE_BUY && range.lastTick.last >= entry + beDistance) || ((long)type == (long)ORDER_TYPE_SELL && range.lastTick.last <= entry - beDistance))
       {
         if ((long)type == (long)ORDER_TYPE_BUY)
           trade.PositionModify(ticket, newStopLoss, takeProfit);
@@ -753,7 +835,16 @@ void Stats()
   if (!IsNewBarStats(PERIOD_D1))
     return;
 
-  string stats = "\n" + InpSymbol + " | " + Profit() + " | " + DrawDown() + "\n";
+  string stats = "\n" + " | " + Profit() + " | " + DrawDown() + "\n";
+  for (int r = 0; r < ArraySize(ranges); r++)
+  {
+    RANGE_STRUCT range = ranges[r];
+    string rangeString = range.symbol + " " + (range.maDirection == 1 ? "Up" : range.maDirection == -1 ? "Down"
+                                                                           : range.maDirection == 0    ? "Flat"
+                                                                                                       : "Unknown") +
+                         "\n";
+    stats += rangeString;
+  }
   Comment(stats);
   Print(stats);
 }

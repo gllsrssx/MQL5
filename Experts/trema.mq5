@@ -8,13 +8,15 @@ CTrade trade;
 
 // Define the indicator and input parameters
 input group "========= Risk settings =========";
-input double riskPercent = 0.1;           // risk percent
-input bool takeBuys = true;               // take buys
-input bool takeSells = true;              // take sells
+input double riskPercent = 0.1; // risk percent
+input bool takeBuys = false;    // take buys
+input bool takeSells = false;   // take sells
 input group "========= MA settings =========";
-input int maPeriod = 200;                 // ma period
-input int maDivider = 4;                  // ma divider
-input ENUM_MA_METHOD maMode = MODE_EMA;   // ma mode
+input int maPeriod = 120;               // ma period
+input int maDivider = 5;                // ma divider
+input ENUM_MA_METHOD maMode = MODE_EMA; // ma mode
+// PRICE_OPEN
+input ENUM_APPLIED_PRICE maPrice = PRICE_CLOSE; // applied price
 
 double currentPrice;
 double bid, ask, spread;
@@ -29,7 +31,6 @@ int lastMaDirection = 0;
 int periodSinceLastDirectionChange = 0;
 datetime previousTime = TimeCurrent();
 
-
 int symbolPosCount = 0;
 
 // Define the OnInit function
@@ -38,7 +39,7 @@ int OnInit()
     barsTotal = iBars(Symbol(), PERIOD_CURRENT);
 
     if (maPeriod > 0)
-        maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, maMode, PRICE_OPEN);
+        maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, maMode, maPrice);
 
     return (INIT_SUCCEEDED);
 }
@@ -66,12 +67,12 @@ void OnTick()
 
     Ema();
 
-    if (maDirection > 0 &&  PositionsTotal() == 0 && takeBuys)
+    if (maDirection > 0 && PositionsTotal() == 0 && takeBuys)
     {
         trade.Buy(riskPercent);
     }
 
-    if(maDirection < 0 && PositionsTotal() == 0 && takeSells)
+    if (maDirection < 0 && PositionsTotal() == 0 && takeSells)
     {
         trade.Sell(riskPercent);
     }
@@ -80,9 +81,7 @@ void OnTick()
     {
         CloseThisSymbolAll();
     }
-
 }
-
 
 void Ema()
 {
@@ -124,48 +123,46 @@ void Ema()
             maDirection = 0;
         }
 
-        ObjectCreate(0, "Ma " + (string) previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
-        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_STYLE, STYLE_SOLID);
-        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_WIDTH, 2);
-        ObjectSetInteger(0, "Ma " + (string) previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
-                                                                                                              : clrYellow);
+        ObjectCreate(0, "Ma " + (string)previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_STYLE, STYLE_SOLID);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_WIDTH, 2);
+        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
+                                                                                                                      : clrYellow);
 
         previousTime = TimeCurrent();
     }
 }
 
 void CloseThisSymbolAll()
-  {
-   int positions,orders;
-   ulong inpMagic = 0;
-   ulong ticket = PositionGetInteger(POSITION_TICKET);
-   int orderType = (int)PositionGetInteger(POSITION_TYPE) ;
-   int orderPendingType = (int)OrderGetInteger(ORDER_TYPE);
-   string orderSymbol = PositionGetString(POSITION_SYMBOL);
-   string orderPendingSymbol = OrderGetString(ORDER_SYMBOL);
-   ulong orderPendingTicket = OrderGetInteger(ORDER_TICKET);
-   ulong orderMagicNumber = PositionGetInteger(POSITION_MAGIC);
-   ulong orderPendingMagicNumber = OrderGetInteger(ORDER_MAGIC);
+{
+    int positions, orders;
+    ulong inpMagic = 0;
+    ulong ticket = PositionGetInteger(POSITION_TICKET);
+    int orderType = (int)PositionGetInteger(POSITION_TYPE);
+    int orderPendingType = (int)OrderGetInteger(ORDER_TYPE);
+    string orderSymbol = PositionGetString(POSITION_SYMBOL);
+    string orderPendingSymbol = OrderGetString(ORDER_SYMBOL);
+    ulong orderPendingTicket = OrderGetInteger(ORDER_TICKET);
+    ulong orderMagicNumber = PositionGetInteger(POSITION_MAGIC);
+    ulong orderPendingMagicNumber = OrderGetInteger(ORDER_MAGIC);
 
-   for(orders=OrdersTotal()-1, positions=PositionsTotal()-1; positions>=0 || orders>=0;positions--,orders--)
-     {
-      ulong numTicket = PositionGetTicket(positions);
-      ulong numOrderTicket = OrderGetTicket(orders);
+    for (orders = OrdersTotal() - 1, positions = PositionsTotal() - 1; positions >= 0 || orders >= 0; positions--, orders--)
+    {
+        ulong numTicket = PositionGetTicket(positions);
+        ulong numOrderTicket = OrderGetTicket(orders);
 
-         if(orderType==POSITION_TYPE_BUY)
-            {
+        if (orderType == POSITION_TYPE_BUY)
+        {
             trade.PositionClose(numTicket);
-            }
-         if(orderType==POSITION_TYPE_SELL)
-            {
-            trade.PositionClose(numTicket);
-            }
-         if(orderPendingType==ORDER_TYPE_BUY_LIMIT || orderPendingType==ORDER_TYPE_SELL_LIMIT ||
-         orderPendingType==ORDER_TYPE_BUY_STOP||orderPendingType==ORDER_TYPE_SELL_STOP
-         ||orderPendingType==ORDER_TYPE_BUY_STOP_LIMIT||orderPendingType==ORDER_TYPE_SELL_STOP_LIMIT)
-            {
-            trade.OrderDelete(numOrderTicket);
-            }
         }
-
-     }
+        if (orderType == POSITION_TYPE_SELL)
+        {
+            trade.PositionClose(numTicket);
+        }
+        if (orderPendingType == ORDER_TYPE_BUY_LIMIT || orderPendingType == ORDER_TYPE_SELL_LIMIT ||
+            orderPendingType == ORDER_TYPE_BUY_STOP || orderPendingType == ORDER_TYPE_SELL_STOP || orderPendingType == ORDER_TYPE_BUY_STOP_LIMIT || orderPendingType == ORDER_TYPE_SELL_STOP_LIMIT)
+        {
+            trade.OrderDelete(numOrderTicket);
+        }
+    }
+}
