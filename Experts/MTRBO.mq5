@@ -62,7 +62,7 @@ enum MA_FILTER_MODE_ENUM
   NO_FILTER,
   TREND_FILTER,
   COUNTER_TREND_FILTER,
-  TREND_AND_COUNTER_TREND_FILTER
+  COUNTER_AND_TREND_FILTER
 };
 input MA_FILTER_MODE_ENUM InpMaFilterMode = NO_FILTER; // MA Filter mode
 
@@ -275,15 +275,17 @@ void MA()
     ArraySetAsSeries(ma, true);
     CopyBuffer(range.maHandle, MAIN_LINE, 0, barsTotal, ma);
 
-    double high = iHigh(range.symbol, 0, 0);
-    double low = iLow(range.symbol, 0, 0);
+    double high = iHigh(range.symbol, 0, 1);
+    double low = iLow(range.symbol, 0, 1);
 
     int newMaDirection = 0;
     if (low > ma[0])
       newMaDirection = 1;
-    if (high < ma[0])
+    else if (high < ma[0])
       newMaDirection = -1;
-   
+    else
+      newMaDirection = 0;
+
     if (newMaDirection != range.lastMaDirection)
     {
       range.periodSinceLastDirectionChange = 1;
@@ -294,7 +296,7 @@ void MA()
       range.periodSinceLastDirectionChange++;
     }
 
-    int changePeriod = InpMaPeriod / 5;
+    int changePeriod = 24;
     if (range.periodSinceLastDirectionChange >= changePeriod)
     {
       range.maDirection = newMaDirection;
@@ -503,7 +505,7 @@ void CheckBreakouts()
         double slDistance = (range.lastTick.ask - range.low) * InpStopLoss * 0.01;
 
         // open buy position
-        if (InpTakeLongs && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == TREND_AND_COUNTER_TREND_FILTER && range.maDirection != 0)))
+        if (InpTakeLongs && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == COUNTER_AND_TREND_FILTER && range.maDirection != 0)))
           trade.PositionOpen(range.symbol, ORDER_TYPE_BUY, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.ask, sl, tp, "Breakout ");
       }
 
@@ -520,7 +522,7 @@ void CheckBreakouts()
         double slDistance = (range.high - range.lastTick.bid) * InpStopLoss * 0.01;
 
         // open sell position
-        if (InpTakeShorts && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == TREND_AND_COUNTER_TREND_FILTER && range.maDirection != 0)))
+        if (InpTakeShorts && (InpMaPeriod == 0 || InpMaFilterMode == NO_FILTER || (InpMaFilterMode == TREND_FILTER && range.maDirection < 0) || (InpMaFilterMode == COUNTER_TREND_FILTER && range.maDirection > 0) || (InpMaFilterMode == COUNTER_AND_TREND_FILTER && range.maDirection != 0)))
           trade.PositionOpen(range.symbol, ORDER_TYPE_SELL, sl == 0 ? InpLots : Volume(range.symbol, slDistance), range.lastTick.bid, sl, tp, "Breakout ");
       }
     }
