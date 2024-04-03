@@ -5,15 +5,17 @@ CTrade trade;
 input double risk = 0.01;                    // risk
 input ENUM_TIMEFRAMES timeFrame = PERIOD_H4; // grid time frame
 int gridLength = 120;                        // grid period
-input int inpPeriod = 6;                     // EMA period
-input int maxGridAway = 6;                   // max grid away
+input int inpPeriod = 0;                     // EMA period
+input int maxGridAway = 0;                   // max grid away
 input bool longTrade = true;                 // long trades
-input bool shortTrade = false;               // short trades
+input bool shortTrade = true;                // short trades
 input bool plot = false;                     // plot levels
 input int InpMagicNumber = 666;              // magic number
+input int InpRecovery = 25;                  // recovery % DD
 
 // global variables
-double bid, ask, spread, currentPrice, gridSize, gridLevels[8], close[], ema[], lastOpen;
+double bid,
+    ask, spread, currentPrice, gridSize, gridLevels[8], close[], ema[], lastOpen;
 int trendEMA = 0, copied, previousTrend = 0, trendCounter;
 
 int OnInit()
@@ -75,6 +77,8 @@ void OnTick()
     DrawGridLines();
 
   CloseLosingPositions();
+
+  Recovery();
 }
 
 void CalculateEMA(int period)
@@ -132,6 +136,8 @@ void DeleteObjects()
 
 void DisplayComment()
 {
+  if (!plot)
+    return;
   string commentText;
   commentText += "trend counter: " + IntegerToString(trendCounter) + "\n";
   commentText += "lastOpen: " + DoubleToString(lastOpen, Digits()) + "\n";
@@ -444,7 +450,7 @@ double OptimumLotSize(double riskPercent, double stopPoints)
   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-  double riskMoney = AccountInfoDouble(ACCOUNT_EQUITY) * riskPercent;
+  double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPercent;
   double moneyLotStep = stopPoints / tickSize * tickValue * lotStep;
   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
@@ -491,5 +497,73 @@ void CloseLosingPositions()
       if (positionType == POSITION_TYPE_SELL && entryPrice < slSells)
         trade.PositionClose(ticket);
     }
+  }
+}
+
+void Recovery()
+{
+  if (InpRecovery == 0)
+    return;
+
+  if (AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (100 - InpRecovery) * 0.01)
+    return;
+
+  int longTrades = 0;
+  int shortTrades = 0;
+  double longPointsToRecover = 0;
+  double ShortPointsToRecover = 0;
+
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    if (!PositionGetTicket(i))
+      return;
+    ulong ticket = PositionGetTicket(i);
+    string positionSymbol = PositionGetString(POSITION_SYMBOL);
+    long positionMagic = PositionGetInteger(POSITION_MAGIC);
+    string positionComment = PositionGetString(POSITION_COMMENT);
+    if (positionSymbol != Symbol() || positionMagic != InpMagicNumber)
+      continue;
+    if (positionComment == "recovery")
+      return;
+
+    long positionType = PositionGetInteger(POSITION_TYPE);
+    double entryPrice = PositionGetDouble(POSITION_PRICE_OPEN);
+
+    if (positionType == POSITION_TYPE_BUY)
+    {
+      longTrades++;
+      longPointsToRecover += entryPrice - currentPrice;
+    }
+    if (positionType == POSITION_TYPE_SELL)
+    {
+      shortTrades++;
+      ShortPointsToRecover += currentPrice - entryPrice;
+    }
+  }
+
+  longPointsToRecover += longTrades * gridSize;
+  ShortPointsToRecover += shortTrades * gridSize;
+
+  if (longPointsToRecover > ShortPointsToRecover)
+    trade.Sell(OptimumLotSize(risk * longPointsToRecover / gridSize, gridSize), NULL, 0, 0, currentPrice - gridSize, "recovery");
+  if (longPointsToRecover < ShortPointsToRecover)
+    trade.Buy(OptimumLotSize(risk * ShortPointsToRecover / gridSize, gridSize), NULL, 0, 0, currentPrice + gridSize, "recovery");
+
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    if (!PositionGetTicket(i))
+      return;
+    ulong ticket = PositionGetTicket(i);
+    string positionSymbol = PositionGetString(POSITION_SYMBOL);
+    long positionMagic = PositionGetInteger(POSITION_MAGIC);
+    string positionComment = PositionGetString(POSITION_COMMENT);
+    if (positionSymbol != Symbol() || positionMagic != InpMagicNumber || positionComment == "recovery")
+      continue;
+    long positionType = PositionGetInteger(POSITION_TYPE);
+    double takeProfit = PositionGetDouble(POSITION_TP);
+    if (positionType == POSITION_TYPE_BUY && longPointsToRecover > ShortPointsToRecover)
+      trade.PositionModify(ticket, currentPrice - gridSize, takeProfit);
+    if (positionType == POSITION_TYPE_SELL && longPointsToRecover < ShortPointsToRecover)
+      trade.PositionModify(ticket, currentPrice + gridSize, takeProfit);
   }
 }

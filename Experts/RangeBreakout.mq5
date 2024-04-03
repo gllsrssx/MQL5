@@ -12,7 +12,7 @@
 
 // Input parameters
 input group "========= Entry settings =========";
-input bool fixedRisdk=false; //fixed risk
+input bool fixedRisdk = false;   // fixed risk
 input double InpLots = 1.0;      // Risk %
 input bool InpTakeLongs = true;  // Long trades
 input bool InpTakeShorts = true; // Short trades
@@ -97,15 +97,18 @@ int OnInit()
         return INIT_FAILED;
     }
 
+    // check user inputs
+    if (!CheckInputs())
+    {
+        ExpertRemove();
+        return INIT_PARAMETERS_INCORRECT;
+    }
+
     // set magic number
     InpMagicNumber = rand();
 
     // Adjust DST and timezone offset
     DSTAdjust();
-
-    // check user inputs
-    if (!CheckInputs())
-        return INIT_PARAMETERS_INCORRECT;
 
     // set magic number
     trade.SetExpertMagicNumber(InpMagicNumber);
@@ -178,24 +181,19 @@ bool CheckInputs()
         Alert("Close time and stop loss is off");
         return false;
     }
-    if (rangeStart < 0 || rangeStart > 1440)
+    if (InpRangeStart < 0 || InpRangeStart + InpRangeStop + InpRangeClose > 24)
     {
-        Alert("Range start time must be greater than zero and less than 1440");
+        Alert("Range must be within 24 hours");
         return false;
     }
-    if (rangeDuration < 0 || rangeDuration > 1440)
+    if (InpRangeStop < InpRangeStart || InpRangeClose < InpRangeStop || InpRangeClose < InpRangeStart)
     {
-        Alert("Range duration must be greater than zero and less than 1440");
+        Alert("Range start time must be less than range stop time");
         return false;
     }
     if (!InpTakeLongs && !InpTakeShorts)
     {
         Alert("At least one trade direction must be selected");
-        return false;
-    }
-    if (rangeClose >= 1440 || (rangeStart + rangeDuration) % 1440 == rangeClose)
-    {
-        Alert("Range close time must be greater than zero and less than 1440 and not equal to range start time + range duration");
         return false;
     }
     if (InpMonday + InpTuesday + InpWednesday + InpThursday + InpFriday == 0)
@@ -532,8 +530,9 @@ void DrawObjects()
 double startBalance = AccountInfoDouble(ACCOUNT_BALANCE);
 double Volume()
 {
-   double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-   if(fixedRisdk) balance = startBalance;
+    double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+    if (fixedRisdk)
+        balance = startBalance;
     double slDistance = (range.high - range.low) * InpStopLoss * 0.01;
     double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
     double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);

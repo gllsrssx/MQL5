@@ -19,9 +19,7 @@ input ENUM_MA_METHOD maMode = MODE_EMA; // ma mode
 input ENUM_APPLIED_PRICE maPrice = PRICE_CLOSE; // applied price
 
 double currentPrice;
-double bid, ask, spread;
-
-int barsTotal;
+MqlTick lastTick;
 
 // Define handles
 int maHandle;
@@ -36,8 +34,6 @@ int symbolPosCount = 0;
 // Define the OnInit function
 int OnInit()
 {
-    barsTotal = iBars(Symbol(), PERIOD_CURRENT);
-
     if (maPeriod > 0)
         maHandle = iMA(Symbol(), PERIOD_CURRENT, maPeriod, 0, maMode, maPrice);
 
@@ -60,10 +56,7 @@ void OnDeinit(const int reason)
 // Define the OnTick function
 void OnTick()
 {
-    bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
-    ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
-    currentPrice = NormalizeDouble((ask + bid) / 2, Digits());
-    spread = NormalizeDouble(MathAbs(ask - bid), Digits());
+    SymbolInfoTick(Symbol(), lastTick);
 
     Ema();
 
@@ -85,52 +78,59 @@ void OnTick()
 
 void Ema()
 {
-    int bars = iBars(Symbol(), PERIOD_CURRENT);
+    if (maPeriod <= 0)
+        return;
 
-    if (barsTotal < bars)
+    static int barsTotal;
+    int bars = iBars(Symbol(), Period());
+    if (barsTotal >= bars)
+        return;
+    barsTotal = bars;
+
+    double ma[];
+    ArraySetAsSeries(ma, true);
+    CopyBuffer(maHandle, MAIN_LINE, 0, barsTotal, ma);
+
+    double high = iHigh(Symbol(), 0, 1);
+    double low = iLow(Symbol(), 0, 1);
+
+    int newMaDirection = 0;
+    if (low > ma[0])
+        newMaDirection = 1;
+    else if (high < ma[0])
+        newMaDirection = -1;
+    else
+        newMaDirection = 0;
+
+    if (newMaDirection != lastMaDirection)
     {
-        barsTotal = bars;
-
-        double ma[];
-        ArraySetAsSeries(ma, true);
-        CopyBuffer(maHandle, MAIN_LINE, 0, barsTotal, ma);
-
-        int newMaDirection = 0;
-        if (currentPrice > ma[0])
-            newMaDirection = 1;
-        else if (currentPrice < ma[0])
-            newMaDirection = -1;
-        else
-            newMaDirection = 0;
-
-        if (newMaDirection != lastMaDirection)
-        {
-            periodSinceLastDirectionChange = 1;
-            lastMaDirection = newMaDirection;
-        }
-        else
-        {
-            periodSinceLastDirectionChange++;
-        }
-
-        int changePeriod = (int)MathRound(maPeriod / maDivider);
-        if (periodSinceLastDirectionChange >= changePeriod)
-        {
-            maDirection = newMaDirection;
-        }
-        else
-        {
-            maDirection = 0;
-        }
-
-        ObjectCreate(0, "Ma " + (string)previousTime, OBJ_TREND, 0, TimeCurrent(), ma[0], previousTime, ma[1]);
-        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_STYLE, STYLE_SOLID);
-        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_WIDTH, 2);
-        ObjectSetInteger(0, "Ma " + (string)previousTime, OBJPROP_COLOR, maDirection > 0 ? clrGreen : maDirection < 0 ? clrRed
-                                                                                                                      : clrYellow);
-
-        previousTime = TimeCurrent();
+        periodSinceLastDirectionChange = 1;
+        lastMaDirection = newMaDirection;
     }
+    else
+    {
+        periodSinceLastDirectionChange++;
+    }
+
+    int changePeriod = 24;
+    if (periodSinceLastDirectionChange >= changePeriod)
+    {
+        maDirection = newMaDirection;
+    }
+    else
+    {
+        maDirection = 0;
+    }
+
+    // draw ma
+    ObjectCreate(0, "Ma " + (string)TimeCurrent(), OBJ_TREND, 0, TimeCurrent(), ma[0], iTime(NULL, Period(), 1), ma[1]);
+    ObjectSetInteger(0, "Ma " + (string)TimeCurrent(), OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "Ma " + (string)TimeCurrent(), OBJPROP_WIDTH, 4);
+    ObjectSetInteger(0, "Ma " + (string)TimeCurrent(), OBJPROP_BACK, true);
+    ObjectSetInteger(0, "Ma " + (string)TimeCurrent(), OBJPROP_COLOR, maDirection == 1 ? clrGreen : maDirection == -1 ? clrRed
+                                                                                                                      : clrGold);
+
+    ChartRedraw();
 }
 
 void CloseThisSymbolAll()
