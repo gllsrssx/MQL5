@@ -12,7 +12,7 @@
 
 // Input parameters
 input group "========= Entry settings =========";
-input bool fixedRisdk = false;   // fixed risk
+input bool fixedRisk = false;    // fixed risk
 input double InpLots = 1.0;      // Risk %
 input bool InpTakeLongs = true;  // Long trades
 input bool InpTakeShorts = true; // Short trades
@@ -531,7 +531,7 @@ double startBalance = AccountInfoDouble(ACCOUNT_BALANCE);
 double Volume()
 {
     double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-    if (fixedRisdk)
+    if (fixedRisk)
         balance = startBalance;
     double slDistance = (range.high - range.low) * InpStopLoss * 0.01;
     double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
