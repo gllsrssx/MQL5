@@ -10,20 +10,20 @@
 // Input parameters
 input bool fixedRisk = false; // fixed risk
 input group "========= Symbol settings =========";
-input string InpSymbol = "AUDUSD, EURUSD, GBPUSD, USDCAD, USDCHF, USDJPY, XAUUSD"; // Symbol
+input string InpSymbol = "EURUSD, GBPUSD, USDJPY, XAUUSD"; // Symbol
 string symbols[];
 
 input group "========= Entry settings =========";
 input double InpLots = 1.0;      // Risk %
 input bool InpTakeLongs = true;  // Long trades
 input bool InpTakeShorts = true; // Short trades
-input int InpDeviation = 0;      // Deviation (0 = off)
+input int InpDeviation = 1;      // Deviation (0 = off)
 long InpMagicNumber;
 
 input group "========= Exit settings =========";
-input int InpTakeProfit = 0;         // TP % range (0 = off)
-input int InpStopLoss = 100;         // SL % range (0 = off)
-input int InpPercentBreakEven = 100; // BE % range (0 = off)
+input int InpTakeProfit = 0;        // TP % range (0 = off)
+input int InpStopLoss = 102;        // SL % range (0 = off)
+input int InpPercentBreakEven = 98; // BE % range (0 = off)
 
 input group "========= Time settings =========";
 input int InpTimezone = 3;           // Timezone
@@ -31,9 +31,9 @@ input bool InpDaylightSaving = true; // DST zone
 int DSToffset;                       // DST offset
 
 input group "========= Range settings =========";
-input int InpRangeStart = 6;  // Range start hour
-input int InpRangeStop = 10;  // Range stop hour
-input int InpRangeClose = 17; // Range close hour (0 = off)
+input int InpRangeStart = 8;  // Range start hour
+input int InpRangeStop = 9;   // Range stop hour
+input int InpRangeClose = 15; // Range close hour (0 = off)
 int rangeStart, rangeDuration, rangeClose;
 
 enum BREAKOUT_MODE_ENUM
@@ -493,7 +493,7 @@ void CheckBreakouts()
     if (range.lastTick.time >= range.end_time && range.end_time > 0 && range.f_entry)
     {
       // check for high breakout
-      if (!range.f_high_breakout && range.lastTick.last >= (range.high + deviation) && InpTakeLongs)
+      if (!range.f_high_breakout && range.lastTick.last > (range.high + deviation) && InpTakeLongs)
       {
         range.f_high_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
@@ -510,7 +510,7 @@ void CheckBreakouts()
       }
 
       // check for low breakout
-      if (!range.f_low_breakout && range.lastTick.last <= (range.low - deviation) && InpTakeShorts)
+      if (!range.f_low_breakout && range.lastTick.last < (range.low - deviation) && InpTakeShorts)
       {
         range.f_low_breakout = true;
         if (InpBreakoutMode == ONE_SIGNAL)
@@ -716,9 +716,8 @@ void BreakEven()
       if (((long)type == (long)ORDER_TYPE_BUY && stopLoss >= entry) || ((long)type == (long)ORDER_TYPE_SELL && stopLoss <= entry))
         continue;
 
-      // calculate a new stop loss distance based on the InpPercentBreakEven percentage
       double beDistance = NormalizeDouble((range.high - range.low) * (InpPercentBreakEven * 0.01), Digits());
-      double additionalDistance = NormalizeDouble(MathAbs(entry - stopLoss) * (InpDeviation * 0.01), Digits());
+      double additionalDistance = NormalizeDouble((range.high - range.low) * (InpDeviation * 0.01), Digits());
       double newStopLoss = 0;
 
       if ((long)type == (long)ORDER_TYPE_BUY)

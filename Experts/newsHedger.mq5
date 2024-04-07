@@ -12,27 +12,71 @@
 CTrade trade;
 
 input group "========= General settings =========";
-input long InpMagicNumber = 88888;       // Magic number
-input string InpCurrencies = "USD, EUR"; // Currencies
+input long InpMagicNumber = 88888; // Magic number
+enum CURRENCIES_ENUM
+{
+  SYMBOL, // SYMBOL
+  ALL,    // ALL
+  AUD,    // AUD
+  CAD,    // CAD
+  CHF,    // CHF
+  CZK,    // CZK
+  DKK,    // DKK
+  EUR,    // EUR
+  GBP,    // GBP
+  HUF,    // HUF
+  JPY,    // JPY
+  NOK,    // NOK
+  NZD,    // NZD
+  PLN,    // PLN
+  SEK,    // SEK
+  USD,    // USD
+};
+input CURRENCIES_ENUM InpCurrencies = SYMBOL; // Currency
+string InpCurrency = InpCurrencies == SYMBOL ? "SYMBOL"
+                     : InpCurrencies == ALL  ? "ALL"
+                     : InpCurrencies == AUD  ? "AUD"
+                     : InpCurrencies == CAD  ? "CAD"
+                     : InpCurrencies == CHF  ? "CHF"
+                     : InpCurrencies == CZK  ? "CZK"
+                     : InpCurrencies == DKK  ? "DKK"
+                     : InpCurrencies == EUR  ? "EUR"
+                     : InpCurrencies == GBP  ? "GBP"
+                     : InpCurrencies == HUF  ? "HUF"
+                     : InpCurrencies == JPY  ? "JPY"
+                     : InpCurrencies == NOK  ? "NOK"
+                     : InpCurrencies == NZD  ? "NZD"
+                     : InpCurrencies == PLN  ? "PLN"
+                     : InpCurrencies == SEK  ? "SEK"
+                     : InpCurrencies == USD  ? "USD"
+                                             : "";
 string currencies[];
 
 input group "========= Risk settings =========";
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // Range timeframe
-input bool fixedLot = true;                      // Fixed lot
-input double InpRisk = 0.1;                      // Risk size
-input double InpRiskMultiplier = 1.1;            // Risk multiplier
-input double InpRiskReward = 4;                  // Risk reward
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H2; // Range timeframe
+bool fixedLot = false;                          // Fixed lot
+input double InpRisk = 0.2;                     // Risk size
+input double InpRiskMultiplier = 1.1;           // Risk multiplier
+input double InpRiskReward = 0.5;               // Risk reward
 
 input group "========= Extra settings =========";
-input int InpMaxHedges = 0;                // Max hedges(0 = unlimited)
-input bool InpImportance_high = true;      // high news
-input bool InpImportance_moderate = false; // moderate news
+input int stopOut = 0;      // Stop out (0 = off)
+input int InpMaxHedges = 0; // Max hedges(0 = off)
+enum NEWS_IMPORTANCE_ENUM
+{
+  BOTH,  // ALL
+  HIGH,  // HIGH
+  MEDIUM // LOW
+};
+input NEWS_IMPORTANCE_ENUM InpImportance = BOTH;                    // News importance
+bool InpImportance_high = InpImportance == MEDIUM ? false : true;   // high news
+bool InpImportance_moderate = InpImportance == HIGH ? false : true; // moderate news
 
 input group "========= Time filter =========";
-input int InpStartHour = 0;   // Start Hour
-input int InpStartMinute = 0; // Start Minute
-input int InpEndHour = 23;    // End Hour
-input int InpEndMinute = 59;  // End Minute
+int InpStartHour = 0;   // Start Hour
+int InpStartMinute = 0; // Start Minute
+int InpEndHour = 23;    // End Hour
+int InpEndMinute = 59;  // End Minute
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -46,7 +90,7 @@ input group "========= Plot settings =========";
 input bool InpShowInfo = true;       // Show Info
 input bool InpShowLines = true;      // Show Lines
 input color InpColorRange = clrBlue; // Range color
-input bool debugPrint = false;       // Debug print
+bool debugPrint = false;             // Debug print
 
 MqlCalendarValue news[];
 MqlTick tick;
@@ -64,13 +108,6 @@ int OnInit()
     Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
     ExpertRemove();
     return INIT_FAILED;
-  }
-  StringSplit(InpCurrencies, ',', currencies);
-  for (int i = 0; i < ArraySize(currencies); i++)
-  {
-    StringTrimRight(currencies[i]);
-    StringTrimLeft(currencies[i]);
-    StringToUpper(currencies[i]);
   }
 
   atrHandle = iATR(Symbol(), InpTimeFrame, 999);
@@ -94,8 +131,11 @@ void OnDeinit(const int reason)
 {
   ObjectsDeleteAll(0);
   ChartRedraw();
+  if (highestPosCount > 1)
+    Print("Max hedges: ", highestPosCount);
   Print("EA stopped!");
-  Comment("EA stopped!");
+  if (!MQLInfoInteger(MQL_TESTER))
+    Comment("EA stopped!");
 }
 
 void OnTick()
@@ -334,7 +374,7 @@ bool IsNewsEvent()
       continue;
     if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
       continue;
-    if (!arrayContains(currencies, country.currency) && ArraySize(currencies) != 0 && !arrayContains(currencies, "ALL"))
+    if (!(country.currency == InpCurrency || InpCurrency == "" || InpCurrency == "ALL" || (InpCurrency == "SYMBOL" && (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT)))))
       continue;
     if (value.time == iTime(Symbol(), InpTimeFrame, 0))
     {
@@ -460,6 +500,9 @@ double baseLots = 0;
 double atrValue = 0;
 void Hedger()
 {
+  if(upperLine != 0 && lowerLine != 0 && tick.ask > upperLine && tick.bid < lowerLine)
+    return;
+
   if (PositionsTotal() > highestPosCount && debugPrint)
   {
     highestPosCount = PositionsTotal();
@@ -475,7 +518,7 @@ void Hedger()
   int totalProfitPoints = 0;
   int atrPoint = (int)round(atrValue / Point());
   int TpPoints = (int)round(atrPoint * InpRiskReward);
-  int DistancePoints = atrPoint / 2;
+  int DistancePoints = atrPoint;
   double LotsMultiplier = InpRiskMultiplier;
 
   int profitDistance = 0;
@@ -517,7 +560,13 @@ void Hedger()
     }
   }
 
-  if (profitDistance > TpPoints || (InpMaxHedges > 0 && PositionsTotal() > InpMaxHedges))
+  double balance = AccountInfoDouble(ACCOUNT_BALANCE);
+  double equity = AccountInfoDouble(ACCOUNT_EQUITY);
+  double expectedEquity = balance * (1 + InpRisk * InpRiskReward * 0.01);
+
+  // Print("Balance: ", balance, " Equity: ", equity, " Expected equity: ", expectedEquity);
+  //  profitDistance > TpPoints
+  if (equity > expectedEquity || (InpMaxHedges > 0 && PositionsTotal() > InpMaxHedges) || (stopOut > 0 && equity < balance * stopOut * 0.01))
   {
     int posTotal = PositionsTotal();
 
@@ -552,7 +601,7 @@ void Hedger()
       {
         Print(" ");
         Print("Total positions: ", posTotal);
-        Print("Total profit points: ", totalProfitPoints);
+        // Print("Total profit points: ", totalProfitPoints);
         Print("points away from last trade: ", profitDistance, " / ", TpPoints);
         Print("profitDistance percent: ", profitDistancePercent, "%");
         Print("decrease per trade: ", decreasePerTrade, "%");
