@@ -1,5 +1,5 @@
 //+------------------------------------------------------------------+
-//|                                                   newsHedger.mq5 |
+//|                                                   NewsHedger.mq5 |
 //|                                  Copyright 2023, MetaQuotes Ltd. |
 //|                                             https://www.mql5.com |
 //+------------------------------------------------------------------+
@@ -15,68 +15,71 @@ input group "========= General settings =========";
 input long InpMagicNumber = 88888; // Magic number
 enum CURRENCIES_ENUM
 {
-  SYMBOL, // SYMBOL
-  ALL,    // ALL
-  AUD,    // AUD
-  CAD,    // CAD
-  CHF,    // CHF
-  CZK,    // CZK
-  DKK,    // DKK
-  EUR,    // EUR
-  GBP,    // GBP
-  HUF,    // HUF
-  JPY,    // JPY
-  NOK,    // NOK
-  NZD,    // NZD
-  PLN,    // PLN
-  SEK,    // SEK
-  USD,    // USD
+  CURRENCY_SYMBOL, // SYMBOL
+  CURRENCY_ALL,    // ALL
+  CURRENCY_AUD,    // AUD
+  CURRENCY_CAD,    // CAD
+  CURRENCY_CHF,    // CHF
+  CURRENCY_CZK,    // CZK
+  CURRENCY_DKK,    // DKK
+  CURRENCY_EUR,    // EUR
+  CURRENCY_GBP,    // GBP
+  CURRENCY_HUF,    // HUF
+  CURRENCY_JPY,    // JPY
+  CURRENCY_NOK,    // NOK
+  CURRENCY_NZD,    // NZD
+  CURRENCY_PLN,    // PLN
+  CURRENCY_SEK,    // SEK
+  CURRENCY_USD     // USD
 };
-input CURRENCIES_ENUM InpCurrencies = SYMBOL; // Currency
-string InpCurrency = InpCurrencies == SYMBOL ? "SYMBOL"
-                     : InpCurrencies == ALL  ? "ALL"
-                     : InpCurrencies == AUD  ? "AUD"
-                     : InpCurrencies == CAD  ? "CAD"
-                     : InpCurrencies == CHF  ? "CHF"
-                     : InpCurrencies == CZK  ? "CZK"
-                     : InpCurrencies == DKK  ? "DKK"
-                     : InpCurrencies == EUR  ? "EUR"
-                     : InpCurrencies == GBP  ? "GBP"
-                     : InpCurrencies == HUF  ? "HUF"
-                     : InpCurrencies == JPY  ? "JPY"
-                     : InpCurrencies == NOK  ? "NOK"
-                     : InpCurrencies == NZD  ? "NZD"
-                     : InpCurrencies == PLN  ? "PLN"
-                     : InpCurrencies == SEK  ? "SEK"
-                     : InpCurrencies == USD  ? "USD"
-                                             : "";
+input CURRENCIES_ENUM InpCurrencies = CURRENCY_SYMBOL; // Currency
+string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
+                     : InpCurrencies == CURRENCY_ALL  ? "ALL"
+                     : InpCurrencies == CURRENCY_AUD  ? "AUD"
+                     : InpCurrencies == CURRENCY_CAD  ? "CAD"
+                     : InpCurrencies == CURRENCY_CHF  ? "CHF"
+                     : InpCurrencies == CURRENCY_CZK  ? "CZK"
+                     : InpCurrencies == CURRENCY_DKK  ? "DKK"
+                     : InpCurrencies == CURRENCY_EUR  ? "EUR"
+                     : InpCurrencies == CURRENCY_GBP  ? "GBP"
+                     : InpCurrencies == CURRENCY_HUF  ? "HUF"
+                     : InpCurrencies == CURRENCY_JPY  ? "JPY"
+                     : InpCurrencies == CURRENCY_NOK  ? "NOK"
+                     : InpCurrencies == CURRENCY_NZD  ? "NZD"
+                     : InpCurrencies == CURRENCY_PLN  ? "PLN"
+                     : InpCurrencies == CURRENCY_SEK  ? "SEK"
+                     : InpCurrencies == CURRENCY_USD  ? "USD"
+                                                      : "";
 string currencies[];
 
 input group "========= Risk settings =========";
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H2; // Range timeframe
-bool fixedLot = false;                          // Fixed lot
-input double InpRisk = 0.2;                     // Risk size
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M5; // Range time frame
+input double InpRisk = 0.1;                     // Risk size
+input double InpRiskReward = 2.0;               // Risk reward
 input double InpRiskMultiplier = 1.1;           // Risk multiplier
-input double InpRiskReward = 0.5;               // Risk reward
 
 input group "========= Extra settings =========";
-input int stopOut = 0;      // Stop out (0 = off)
+input int InpStopOut = 90;  // Stop out (0 = off)
 input int InpMaxHedges = 0; // Max hedges(0 = off)
 enum NEWS_IMPORTANCE_ENUM
 {
-  BOTH,  // ALL
-  HIGH,  // HIGH
-  MEDIUM // LOW
+  IMPORTANCE_ALL,    // ALL
+  IMPORTANCE_BOTH,   // HIGH and MEDIUM
+  IMPORTANCE_HIGH,   // HIGH
+  IMPORTANCE_MEDIUM, // MEDIUM
+  IMPORTANCE_LOW     // LOW
+
 };
-input NEWS_IMPORTANCE_ENUM InpImportance = BOTH;                    // News importance
-bool InpImportance_high = InpImportance == MEDIUM ? false : true;   // high news
-bool InpImportance_moderate = InpImportance == HIGH ? false : true; // moderate news
+input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_ALL; // News importance
+bool InpImportance_high = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_HIGH || InpImportance == IMPORTANCE_BOTH;
+bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_MEDIUM || InpImportance == IMPORTANCE_BOTH;
+bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
 
 input group "========= Time filter =========";
-int InpStartHour = 0;   // Start Hour
-int InpStartMinute = 0; // Start Minute
-int InpEndHour = 23;    // End Hour
-int InpEndMinute = 59;  // End Minute
+input int InpStartHour = 1;   // Start Hour
+input int InpStartMinute = 0; // Start Minute
+input int InpEndHour = 22;    // End Hour
+input int InpEndMinute = 0;   // End Minute
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -90,12 +93,11 @@ input group "========= Plot settings =========";
 input bool InpShowInfo = true;       // Show Info
 input bool InpShowLines = true;      // Show Lines
 input color InpColorRange = clrBlue; // Range color
-bool debugPrint = false;             // Debug print
 
 MqlCalendarValue news[];
 MqlTick tick;
 
-int atrHandle, barsTotalM1, barsTotalM5, barsTotalM15, barsTotalM30, barsTotalH1, barsTotalH4, barsTotalD1;
+int atrHandle;
 double upperLine, lowerLine;
 
 int OnInit()
@@ -131,8 +133,7 @@ void OnDeinit(const int reason)
 {
   ObjectsDeleteAll(0);
   ChartRedraw();
-  if (highestPosCount > 1)
-    Print("Max hedges: ", highestPosCount);
+  MaxHedges();
   Print("EA stopped!");
   if (!MQLInfoInteger(MQL_TESTER))
     Comment("EA stopped!");
@@ -141,7 +142,7 @@ void OnDeinit(const int reason)
 void OnTick()
 {
   SymbolInfoTick(Symbol(), tick);
-  Hedger();
+  Main();
 }
 
 struct economicNews
@@ -313,9 +314,10 @@ bool getBTnews(long period, economicNews &newsBT[])
   return false;
 }
 
+int totalBarsCal;
 void GetCalendarValue()
 {
-  if (!IsNewBar(PERIOD_D1))
+  if (!IsNewBar1(PERIOD_D1))
     return;
   if (MQLInfoInteger(MQL_TESTER))
   {
@@ -329,9 +331,10 @@ void GetCalendarValue()
   CalendarValueHistory(news, startTime, endTime, NULL, NULL);
 }
 
+int totalBarsEvent;
 bool IsNewsEvent()
 {
-  if (!IsNewBar(PERIOD_M5))
+  if (!IsNewBar2(PERIOD_M5))
     return false;
 
   MqlDateTime time;
@@ -368,7 +371,9 @@ bool IsNewsEvent()
       CalendarCountryById(event.country_id, country);
     }
 
-    if (event.importance == CALENDAR_IMPORTANCE_NONE || event.importance == CALENDAR_IMPORTANCE_LOW)
+    if (event.importance == CALENDAR_IMPORTANCE_NONE)
+      continue;
+    if (event.importance == CALENDAR_IMPORTANCE_LOW && !InpImportance_low)
       continue;
     if (event.importance == CALENDAR_IMPORTANCE_MODERATE && !InpImportance_moderate)
       continue;
@@ -378,8 +383,7 @@ bool IsNewsEvent()
       continue;
     if (value.time == iTime(Symbol(), InpTimeFrame, 0))
     {
-      if (IsNewBar(InpTimeFrame) && InpTimeFrame != PERIOD_M5 && InpTimeFrame != PERIOD_D1)
-        Print("News event detected: ", country.currency, " ", event.name, " ", value.time, " ", event.importance);
+      Print("News event detected: ", country.currency, " ", event.name, " ", value.time, " ", event.importance);
       return true;
     }
   }
@@ -396,65 +400,23 @@ bool arrayContains(string &arr[], string value)
   return false;
 }
 
-bool IsNewBar(ENUM_TIMEFRAMES timeFrame)
+int barsTotal1, barsTotal2;
+bool IsNewBar1(ENUM_TIMEFRAMES timeFrame)
 {
-  int barsTotal;
-  switch (timeFrame)
-  {
-  case PERIOD_M1:
-    barsTotal = barsTotalM1;
-    break;
-  case PERIOD_M5:
-    barsTotal = barsTotalM5;
-    break;
-  case PERIOD_M15:
-    barsTotal = barsTotalM15;
-    break;
-  case PERIOD_M30:
-    barsTotal = barsTotalM30;
-    break;
-  case PERIOD_H1:
-    barsTotal = barsTotalH1;
-    break;
-  case PERIOD_H4:
-    barsTotal = barsTotalH4;
-    break;
-  case PERIOD_D1:
-    barsTotal = barsTotalD1;
-    break;
-  default:
-    return false;
-  }
-
   int bars = iBars(Symbol(), timeFrame);
-  if (bars == barsTotal)
+  if (bars == barsTotal1)
     return false;
 
-  switch (timeFrame)
-  {
-  case PERIOD_M1:
-    barsTotalM1 = bars;
-    break;
-  case PERIOD_M5:
-    barsTotalM5 = bars;
-    break;
-  case PERIOD_M15:
-    barsTotalM15 = bars;
-    break;
-  case PERIOD_M30:
-    barsTotalM30 = bars;
-    break;
-  case PERIOD_H1:
-    barsTotalH1 = bars;
-    break;
-  case PERIOD_H4:
-    barsTotalH4 = bars;
-    break;
-  case PERIOD_D1:
-    barsTotalD1 = bars;
-    break;
-  }
+  barsTotal1 = bars;
+  return true;
+}
+bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
+{
+  int bars = iBars(Symbol(), timeFrame);
+  if (bars == barsTotal2)
+    return false;
 
+  barsTotal2 = bars;
   return true;
 }
 
@@ -466,9 +428,8 @@ double AtrValue()
   return NormalizeDouble(atrBuffer[0], Digits());
 }
 
-double Volume()
+double Volume(double slDistance)
 {
-  double slDistance = atrValue;
   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
@@ -487,192 +448,141 @@ double Volume()
     Print(lots, " > Adjusted to minimum volume > ", maxVol);
     lots = maxVol;
   }
-  if (fixedLot)
-    lots = InpRisk;
+
   return lots;
 }
 
-int stats[9999][5];
-int counter = 0;
-int highestPosCount = 0;
-
-double baseLots = 0;
-double atrValue = 0;
-void Hedger()
+int GetLastDirection()
 {
-  if(upperLine != 0 && lowerLine != 0 && tick.ask > upperLine && tick.bid < lowerLine)
-    return;
+  if (PositionsTotal() == 0)
+    return 0;
 
-  if (PositionsTotal() > highestPosCount && debugPrint)
-  {
-    highestPosCount = PositionsTotal();
-  }
-
-  if (atrValue == 0)
-  {
-    atrValue = AtrValue();
-    return;
-  }
   double highestLotSize = 0;
   int lastDirection = 0;
-  int totalProfitPoints = 0;
-  int atrPoint = (int)round(atrValue / Point());
-  int TpPoints = (int)round(atrPoint * InpRiskReward);
-  int DistancePoints = atrPoint;
-  double LotsMultiplier = InpRiskMultiplier;
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    ulong ticket = PositionGetTicket(i);
+    if (!PositionSelectByTicket(ticket))
+      continue;
+    if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+      continue;
 
-  int profitDistance = 0;
+    double posLots = PositionGetDouble(POSITION_VOLUME);
+
+    if (posLots <= highestLotSize)
+      continue;
+
+    highestLotSize = posLots;
+
+    if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
+    {
+      lastDirection = 1;
+    }
+    else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+    {
+      lastDirection = -1;
+    }
+  }
+  return lastDirection;
+}
+
+double GetPositionSize()
+{
+
+  double baseLots = Volume(AtrValue());
+
+  if (PositionsTotal() == 0)
+    return baseLots * InpRiskMultiplier;
+
+  int lastDirection = GetLastDirection();
   double openBuyLots = 0;
   double openSellLots = 0;
 
   for (int i = PositionsTotal() - 1; i >= 0; i--)
   {
     ulong ticket = PositionGetTicket(i);
-    if (PositionSelectByTicket(ticket))
+    if (!PositionSelectByTicket(ticket))
+      continue;
+    if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+      continue;
+
+    if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
     {
-      double posLots = PositionGetDouble(POSITION_VOLUME);
-
-      if (posLots > highestLotSize)
-      {
-        highestLotSize = posLots;
-        if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-        {
-          lastDirection = 1;
-          profitDistance = (int)((tick.bid - PositionGetDouble(POSITION_PRICE_OPEN)) / Point());
-        }
-        else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
-        {
-          lastDirection = -1;
-          profitDistance = (int)((PositionGetDouble(POSITION_PRICE_OPEN) - tick.ask) / Point());
-        }
-      }
-
-      if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_BUY)
-      {
-        totalProfitPoints += (int)((tick.bid - PositionGetDouble(POSITION_PRICE_OPEN)) / Point());
-        openBuyLots += posLots;
-      }
-      else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
-      {
-        totalProfitPoints += (int)((PositionGetDouble(POSITION_PRICE_OPEN) - tick.ask) / Point());
-        openSellLots += posLots;
-      }
+      openBuyLots += PositionGetDouble(POSITION_VOLUME);
+    }
+    else if (PositionGetInteger(POSITION_TYPE) == POSITION_TYPE_SELL)
+    {
+      openSellLots += PositionGetDouble(POSITION_VOLUME);
     }
   }
 
-  double balance = AccountInfoDouble(ACCOUNT_BALANCE);
-  double equity = AccountInfoDouble(ACCOUNT_EQUITY);
-  double expectedEquity = balance * (1 + InpRisk * InpRiskReward * 0.01);
-
-  // Print("Balance: ", balance, " Equity: ", equity, " Expected equity: ", expectedEquity);
-  //  profitDistance > TpPoints
-  if (equity > expectedEquity || (InpMaxHedges > 0 && PositionsTotal() > InpMaxHedges) || (stopOut > 0 && equity < balance * stopOut * 0.01))
+  if (lastDirection == 1)
   {
-    int posTotal = PositionsTotal();
+    return (((((InpRiskReward + 1) / InpRiskReward) * openBuyLots - openSellLots) * 2 + baseLots) * InpRiskMultiplier);
+  }
+  else if (lastDirection == -1)
+  {
+    return (((((InpRiskReward + 1) / InpRiskReward) * openSellLots - openBuyLots) * 2 + baseLots) * InpRiskMultiplier);
+  }
+  else
+  {
+    return baseLots;
+  }
+}
 
+void CalculateZone()
+{
+  if (PositionsTotal() > 0 || !IsNewsEvent())
+    return;
+  double atrValue = AtrValue();
+  upperLine = NormalizeDouble(tick.last + atrValue, Digits());
+  lowerLine = NormalizeDouble(tick.last - atrValue, Digits());
+}
+
+void TakeTrade()
+{
+  MqlDateTime time;
+  TimeToStruct(TimeCurrent(), time);
+
+  if (upperLine == 0 || lowerLine == 0 || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
+    return;
+
+  int lastDirection = GetLastDirection();
+  double lots = GetPositionSize();
+
+  if (tick.last > upperLine && lastDirection != 1)
+  {
+    trade.Buy(NormalizeDouble(lots, 2));
+  }
+  if (tick.last < lowerLine && lastDirection != -1)
+  {
+    trade.Sell(NormalizeDouble(lots, 2));
+  }
+}
+
+void CloseTrades()
+{
+  if (PositionsTotal() == 0)
+    return;
+
+  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionsTotal() > InpMaxHedges) || AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01))
+  {
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
       ulong ticket = PositionGetTicket(i);
-      if (PositionSelectByTicket(ticket))
-      {
-        trade.PositionClose(ticket);
-      }
-    }
+      if (!PositionSelectByTicket(ticket))
+        continue;
+      if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+        continue;
 
-    int profitDistancePercent = (profitDistance * 100 / TpPoints);
-    int decreasePerTrade = ((100 - profitDistancePercent) / posTotal);
-
-    stats[counter][0] = posTotal;
-    stats[counter][1] = totalProfitPoints;
-    stats[counter][2] = profitDistance;
-    stats[counter][3] = profitDistancePercent;
-    stats[counter][4] = decreasePerTrade;
-    counter++;
-
-    for (int i = 0; i < counter; i++)
-    {
-      posTotal = stats[i][0];
-      totalProfitPoints = stats[i][1];
-      profitDistance = stats[i][2];
-      profitDistancePercent = stats[i][3];
-      decreasePerTrade = stats[i][4];
-
-      if (debugPrint)
-      {
-        Print(" ");
-        Print("Total positions: ", posTotal);
-        // Print("Total profit points: ", totalProfitPoints);
-        Print("points away from last trade: ", profitDistance, " / ", TpPoints);
-        Print("profitDistance percent: ", profitDistancePercent, "%");
-        Print("decrease per trade: ", decreasePerTrade, "%");
-        Print(" ");
-      }
-      // sort array by posTotal
-      if (i < counter - 1 && posTotal > stats[i + 1][0])
-      {
-        int temp[5];
-        for (int j = 0; j < 5; j++)
-        {
-          temp[j] = stats[i][j];
-          stats[i][j] = stats[i + 1][j];
-          stats[i + 1][j] = temp[j];
-        }
-      }
-    }
-    if (debugPrint)
-      Print("Highest position count: ", highestPosCount);
-
-    highestLotSize = 0;
-    lastDirection = 0;
-    upperLine = 0;
-    lowerLine = 0;
-  }
-
-  if (highestLotSize == 0 && IsNewsEvent() && upperLine == 0 && lowerLine == 0)
-  {
-    atrValue = AtrValue() * 2;
-    upperLine = tick.last + DistancePoints * Point();
-    lowerLine = tick.last - DistancePoints * Point();
-    baseLots = Volume();
-  }
-
-  if (upperLine > 0 && lowerLine > 0)
-  {
-    double lots = baseLots;
-
-    if (tick.last > upperLine)
-    {
-      if (highestLotSize == 0 || lastDirection < 0)
-      {
-        if (highestLotSize > 0)
-          lots = ((((InpRiskReward + 1) / InpRiskReward) * openSellLots - openBuyLots) * InpRiskMultiplier) + baseLots;
-
-        trade.Buy(NormalizeDouble(lots, 2));
-      }
-    }
-    else if (tick.last < lowerLine)
-    {
-      if (highestLotSize == 0 || lastDirection > 0)
-      {
-        if (highestLotSize > 0)
-          lots = ((((InpRiskReward + 1) / InpRiskReward) * openBuyLots - openSellLots) * InpRiskMultiplier) + baseLots;
-
-        trade.Sell(NormalizeDouble(lots, 2));
-      }
+      trade.PositionClose(ticket);
+      upperLine = 0;
+      lowerLine = 0;
     }
   }
-
-  if (InpShowInfo)
-    Comment("Server time: ", TimeCurrent(), "\n",
-            "Upper line: ", upperLine, "\n",
-            "Lower line: ", lowerLine, "\n",
-            "Last price: ", tick.last, "\n",
-            "Profit distance: ", profitDistance, " points / ", TpPoints, " points\n",
-            "Last direction: ", lastDirection, "\n",
-            "Base lots: ", baseLots, "\n",
-            "Highest lot size: ", NormalizeDouble(highestLotSize, 2), "\n",
-            "ATR value: ", atrValue, "\n");
-
+}
+void ShowLines()
+{
   if (!InpShowLines)
     return;
   if (upperLine > 0)
@@ -690,4 +600,49 @@ void Hedger()
     ObjectDelete(0, "upperLine");
     ObjectDelete(0, "lowerLine");
   }
+}
+
+void ShowInfo()
+{
+  if (InpShowInfo)
+    Comment("Server time: ", TimeCurrent(), "\n",
+            "Last price: ", tick.last, "\n",
+            "Upper line: ", upperLine, "\n",
+            "Lower line: ", lowerLine, "\n",
+            "Last direction: ", GetLastDirection(), "\n",
+            "lots: ", NormalizeDouble(GetPositionSize(), 2), "\n");
+}
+
+int MaxHedges()
+{
+  static int maxHedges = 0;
+  if (PositionsTotal() < 1)
+    return maxHedges;
+  int hedges = 0;
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    ulong ticket = PositionGetTicket(i);
+    if (!PositionSelectByTicket(ticket))
+      continue;
+    if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+      continue;
+    hedges++;
+  }
+  if (hedges > maxHedges)
+    maxHedges = hedges;
+  return maxHedges;
+}
+
+void Hedger()
+{
+  CalculateZone();
+  TakeTrade();
+  CloseTrades();
+  ShowLines();
+  ShowInfo();
+}
+
+void Main()
+{
+  Hedger();
 }
