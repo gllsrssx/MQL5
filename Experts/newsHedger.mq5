@@ -334,6 +334,9 @@ void GetCalendarValue()
 int totalBarsEvent;
 bool IsNewsEvent()
 {
+  if (PositionsTotal() > 0)
+    return false;
+
   if (!IsNewBar2(PERIOD_M5))
     return false;
 
