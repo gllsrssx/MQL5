@@ -336,7 +336,6 @@ bool IsNewsEvent()
 {
   if (PositionsTotal() > 0)
     return false;
-
   if (!IsNewBar2(PERIOD_M5))
     return false;
 
@@ -349,7 +348,6 @@ bool IsNewsEvent()
   if (time.hour == InpEndHour && time.min > InpEndMinute)
     return false;
 
-  // check the day
   if ((time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
     return false;
 
@@ -384,7 +382,7 @@ bool IsNewsEvent()
       continue;
     if (!(country.currency == InpCurrency || InpCurrency == "" || InpCurrency == "ALL" || (InpCurrency == "SYMBOL" && (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT)))))
       continue;
-    if (value.time == iTime(Symbol(), InpTimeFrame, 0))
+    if (value.time == iTime(Symbol(), PERIOD_M5, 0))
     {
       Print("News event detected: ", country.currency, " ", event.name, " ", value.time, " ", event.importance);
       return true;
