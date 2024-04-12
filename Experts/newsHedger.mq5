@@ -53,10 +53,10 @@ string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
 string currencies[];
 
 input group "========= Risk settings =========";
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M5; // Range time frame
-input double InpRisk = 0.1;                     // Risk size
-input double InpRiskReward = 2.0;               // Risk reward
-input double InpRiskMultiplier = 1.1;           // Risk multiplier
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // Range time frame
+input double InpRisk = 0.1;                      // Risk size
+input double InpRiskReward = 1.0;                // Risk reward
+input double InpRiskMultiplier = 1.0;            // Risk multiplier
 
 input group "========= Extra settings =========";
 input int InpStopOut = 90;  // Stop out (0 = off)
@@ -79,7 +79,7 @@ input group "========= Time filter =========";
 input int InpStartHour = 1;   // Start Hour
 input int InpStartMinute = 0; // Start Minute
 input int InpEndHour = 22;    // End Hour
-input int InpEndMinute = 0;   // End Minute
+input int InpEndMinute = 59;  // End Minute
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -576,9 +576,9 @@ void CloseTrades()
         continue;
 
       trade.PositionClose(ticket);
-      upperLine = 0;
-      lowerLine = 0;
     }
+    upperLine = 0;
+    lowerLine = 0;
   }
 }
 void ShowLines()
@@ -635,9 +635,9 @@ int MaxHedges()
 
 void Hedger()
 {
+  CloseTrades();
   CalculateZone();
   TakeTrade();
-  CloseTrades();
   ShowLines();
   ShowInfo();
 }
