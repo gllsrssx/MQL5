@@ -439,14 +439,15 @@ double Volume(double slDistance)
   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
   double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
-  if (lots < minVol)
+
+  if (lots < minVol || lots != lots || lots == 0)
   {
     Print(lots, " > Adjusted to minimum volume > ", minVol);
     lots = minVol;
   }
   else if (lots > maxVol)
   {
-    Print(lots, " > Adjusted to minimum volume > ", maxVol);
+    Print(lots, " > Adjusted to maximum volume > ", maxVol);
     lots = maxVol;
   }
 
