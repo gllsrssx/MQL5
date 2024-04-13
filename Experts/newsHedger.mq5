@@ -97,7 +97,6 @@ input color InpColorRange = clrBlue; // Range color
 MqlCalendarValue news[];
 MqlTick tick;
 
-int atrHandle;
 double upperLine, lowerLine;
 
 int OnInit()
@@ -111,8 +110,6 @@ int OnInit()
     ExpertRemove();
     return INIT_FAILED;
   }
-
-  atrHandle = iATR(Symbol(), InpTimeFrame, 999);
 
   trade.SetExpertMagicNumber(InpMagicNumber);
 
@@ -421,12 +418,25 @@ bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
   return true;
 }
 
+int period = 10000;
 double AtrValue()
 {
+  int atrHandle = iATR(Symbol(), InpTimeFrame, period);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
   CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
-  return NormalizeDouble(atrBuffer[0], Digits());
+  double result = NormalizeDouble(atrBuffer[0], Digits());
+
+  while (result == 0 && period > 1)
+  {
+    period /= 2;
+    atrHandle = iATR(Symbol(), InpTimeFrame, period);
+    ArraySetAsSeries(atrBuffer, true);
+    CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
+    result = NormalizeDouble(atrBuffer[0], Digits());
+  }
+
+  return result;
 }
 
 double Volume(double slDistance)
@@ -440,7 +450,7 @@ double Volume(double slDistance)
   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
   double maxVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
 
-  if (lots < minVol || lots != lots || lots == 0)
+  if (lots < minVol || lots == NULL)
   {
     Print(lots, " > Adjusted to minimum volume > ", minVol);
     lots = minVol;
