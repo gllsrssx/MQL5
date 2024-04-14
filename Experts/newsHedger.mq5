@@ -13,6 +13,7 @@ CTrade trade;
 
 input group "========= General settings =========";
 input long InpMagicNumber = 88888; // Magic number
+input int atrPeriod = 480;         // ATR period
 enum CURRENCIES_ENUM
 {
   CURRENCY_SYMBOL, // SYMBOL
@@ -97,7 +98,8 @@ input color InpColorRange = clrBlue; // Range color
 MqlCalendarValue news[];
 MqlTick tick;
 
-double upperLine, lowerLine;
+int atrHandle;
+double upperLine, lowerLine, baseLots;
 
 int OnInit()
 {
@@ -111,6 +113,7 @@ int OnInit()
     return INIT_FAILED;
   }
 
+  atrHandle = iATR(Symbol(), InpTimeFrame, atrPeriod);
   trade.SetExpertMagicNumber(InpMagicNumber);
 
   if (MQLInfoInteger(MQL_TESTER))
@@ -331,7 +334,7 @@ void GetCalendarValue()
 int totalBarsEvent;
 bool IsNewsEvent()
 {
-  if (PositionsTotal() > 0)
+  if (PositionCount() > 0)
     return false;
   if (!IsNewBar2(PERIOD_M5))
     return false;
@@ -418,23 +421,12 @@ bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
   return true;
 }
 
-int period = 10000;
 double AtrValue()
 {
-  int atrHandle = iATR(Symbol(), InpTimeFrame, period);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
   CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
   double result = NormalizeDouble(atrBuffer[0], Digits());
-
-  while (result == 0 && period > 1)
-  {
-    period /= 2;
-    atrHandle = iATR(Symbol(), InpTimeFrame, period);
-    ArraySetAsSeries(atrBuffer, true);
-    CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
-    result = NormalizeDouble(atrBuffer[0], Digits());
-  }
 
   return result;
 }
@@ -466,12 +458,12 @@ double Volume(double slDistance)
 
 int GetLastDirection()
 {
-  if (PositionsTotal() == 0)
+  if (PositionCount() == 0)
     return 0;
 
   double highestLotSize = 0;
   int lastDirection = 0;
-  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  for (int i = PositionCount() - 1; i >= 0; i--)
   {
     ulong ticket = PositionGetTicket(i);
     if (!PositionSelectByTicket(ticket))
@@ -498,13 +490,28 @@ int GetLastDirection()
   return lastDirection;
 }
 
+int PositionCount()
+{
+  int count = 0;
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
+  {
+    ulong ticket = PositionGetTicket(i);
+    if (!PositionSelectByTicket(ticket))
+      continue;
+    if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
+      continue;
+    count++;
+  }
+  return count;
+}
+
 double GetPositionSize()
 {
-
-  double baseLots = Volume(AtrValue());
-
-  if (PositionsTotal() == 0)
+  if (PositionCount() == 0)
+  {
+    baseLots = Volume(AtrValue());
     return baseLots * InpRiskMultiplier;
+  }
 
   int lastDirection = GetLastDirection();
   double openBuyLots = 0;
@@ -544,7 +551,7 @@ double GetPositionSize()
 
 void CalculateZone()
 {
-  if (PositionsTotal() > 0 || !IsNewsEvent())
+  if (PositionCount() > 0 || !IsNewsEvent())
     return;
   double atrValue = AtrValue();
   upperLine = NormalizeDouble(tick.last + atrValue, Digits());
@@ -574,10 +581,10 @@ void TakeTrade()
 
 void CloseTrades()
 {
-  if (PositionsTotal() == 0)
+  if (PositionCount() == 0)
     return;
 
-  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionsTotal() > InpMaxHedges) || AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01))
+  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01))
   {
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
@@ -597,20 +604,33 @@ void ShowLines()
 {
   if (!InpShowLines)
     return;
-  if (upperLine > 0)
+  if (upperLine > 0 && lowerLine > 0)
   {
     ObjectCreate(0, "upperLine", OBJ_HLINE, 0, TimeCurrent(), upperLine);
     ObjectSetInteger(0, "upperLine", OBJPROP_COLOR, InpColorRange);
-  }
-  if (lowerLine > 0)
-  {
+    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_SOLID);
+
     ObjectCreate(0, "lowerLine", OBJ_HLINE, 0, TimeCurrent(), lowerLine);
     ObjectSetInteger(0, "lowerLine", OBJPROP_COLOR, InpColorRange);
+    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_SOLID);
+
+    ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
+    ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
+    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
+
+    double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
+    ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
+    ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, clrGold);
+    ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DOT);
+
+    ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
+    ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, clrGold);
+    ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DOT);
   }
   if (upperLine == 0 || lowerLine == 0)
   {
-    ObjectDelete(0, "upperLine");
-    ObjectDelete(0, "lowerLine");
+    // ObjectDelete(0, "upperLine");
+    // ObjectDelete(0, "lowerLine");
   }
 }
 
@@ -622,24 +642,16 @@ void ShowInfo()
             "Upper line: ", upperLine, "\n",
             "Lower line: ", lowerLine, "\n",
             "Last direction: ", GetLastDirection(), "\n",
-            "lots: ", NormalizeDouble(GetPositionSize(), 2), "\n");
+            "lots: ", NormalizeDouble(GetPositionSize(), 2), "\n",
+            "ATR: ", AtrValue(), "\n");
 }
 
 int MaxHedges()
 {
   static int maxHedges = 0;
-  if (PositionsTotal() < 1)
+  int hedges = PositionCount();
+  if (hedges < 1)
     return maxHedges;
-  int hedges = 0;
-  for (int i = PositionsTotal() - 1; i >= 0; i--)
-  {
-    ulong ticket = PositionGetTicket(i);
-    if (!PositionSelectByTicket(ticket))
-      continue;
-    if (PositionGetString(POSITION_SYMBOL) != Symbol() || PositionGetInteger(POSITION_MAGIC) != InpMagicNumber)
-      continue;
-    hedges++;
-  }
   if (hedges > maxHedges)
     maxHedges = hedges;
   return maxHedges;
