@@ -608,29 +608,29 @@ void ShowLines()
   {
     ObjectCreate(0, "upperLine", OBJ_HLINE, 0, TimeCurrent(), upperLine);
     ObjectSetInteger(0, "upperLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_DOT);
 
     ObjectCreate(0, "lowerLine", OBJ_HLINE, 0, TimeCurrent(), lowerLine);
     ObjectSetInteger(0, "lowerLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_DOT);
 
-    ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
-    ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
+    // ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
+    // ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
+    // ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
 
-    double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
-    ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
-    ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, clrGold);
-    ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DOT);
+    // double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
+    // ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
+    // ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, clrGold);
+    // ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DOT);
 
-    ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
-    ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, clrGold);
-    ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DOT);
+    // ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
+    // ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, clrGold);
+    // ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DOT);
   }
   if (upperLine == 0 || lowerLine == 0)
   {
-    // ObjectDelete(0, "upperLine");
-    // ObjectDelete(0, "lowerLine");
+    ObjectDelete(0, "upperLine");
+    ObjectDelete(0, "lowerLine");
   }
 }
 
