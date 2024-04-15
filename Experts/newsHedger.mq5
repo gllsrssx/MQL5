@@ -13,7 +13,7 @@ CTrade trade;
 
 input group "========= General settings =========";
 input long InpMagicNumber = 88888; // Magic number
-input int atrPeriod = 480;         // ATR period
+input int atrPeriod = 1000;         // ATR period
 enum CURRENCIES_ENUM
 {
   CURRENCY_SYMBOL, // SYMBOL
@@ -60,7 +60,7 @@ input double InpRiskReward = 1.0;                // Risk reward
 input double InpRiskMultiplier = 1.0;            // Risk multiplier
 
 input group "========= Extra settings =========";
-input int InpStopOut = 90;  // Stop out (0 = off)
+input int InpStopOut = 0;  // Stop out (0 = off)
 input int InpMaxHedges = 0; // Max hedges(0 = off)
 enum NEWS_IMPORTANCE_ENUM
 {
@@ -77,10 +77,10 @@ bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance =
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
 
 input group "========= Time filter =========";
-input int InpStartHour = 1;   // Start Hour
+input int InpStartHour = -1;   // Start Hour (-1 = off)
 input int InpStartMinute = 0; // Start Minute
-input int InpEndHour = 22;    // End Hour
-input int InpEndMinute = 59;  // End Minute
+input int InpEndHour = -1;    // End Hour (-1 = off)
+input int InpEndMinute = 0;  // End Minute
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -341,11 +341,11 @@ bool IsNewsEvent()
 
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
-  if (time.hour < InpStartHour || time.hour > InpEndHour)
+  if ((time.hour < InpStartHour || time.hour > InpEndHour) && InpStartHour > -1)
     return false;
-  if (time.hour == InpStartHour && time.min < InpStartMinute)
+  if (time.hour == InpStartHour && time.min < InpStartMinute && InpStartHour > -1)
     return false;
-  if (time.hour == InpEndHour && time.min > InpEndMinute)
+  if (time.hour == InpEndHour && time.min > InpEndMinute && InpEndHour > -1)
     return false;
 
   if ((time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
@@ -563,7 +563,7 @@ void TakeTrade()
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
 
-  if (upperLine == 0 || lowerLine == 0 || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
+  if (upperLine == 0 || lowerLine == 0 || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
     return;
 
   int lastDirection = GetLastDirection();
@@ -614,9 +614,9 @@ void ShowLines()
     ObjectSetInteger(0, "lowerLine", OBJPROP_COLOR, InpColorRange);
     ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_DOT);
 
-    // ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
-    // ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
-    // ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
+    ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
+    ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
+    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
 
     // double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
     // ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
@@ -631,6 +631,7 @@ void ShowLines()
   {
     ObjectDelete(0, "upperLine");
     ObjectDelete(0, "lowerLine");
+    ObjectDelete(0, "middleLine");
   }
 }
 
