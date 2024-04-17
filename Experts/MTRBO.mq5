@@ -191,8 +191,6 @@ void OnTick()
   RangeCheck();
   // check for breakouts
   CheckBreakouts();
-  // breakeven
-  BreakEven();
   // DST
   DSTAdjust();
   // stats

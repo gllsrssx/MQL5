@@ -74,35 +74,35 @@ long InpMagicNumber;
 
 int OnInit()
 {
-    long accountNumbers[] = {11028867, 7216275, 7222732, 10000973723};
-    long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
-    if (ArrayBsearch(accountNumbers, accountNumber) == -1)
-    {
-        Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
-        ExpertRemove();
-        return INIT_FAILED;
-    }
-    else
-    {
-        Print("The account " + (string)accountNumber + " is authorized to use this EA.");
-    }
-    if (TimeCurrent() < StringToTime("2025.01.01 00:00:00"))
-    {
-        Print("This is a demo version of the EA. It will only work until January 1, 2025.");
-    }
-    else
-    {
-        Print("This is a demo version of the EA. It will only work until January 1, 2025.");
-        ExpertRemove();
-        return INIT_FAILED;
-    }
+    // long accountNumbers[] = {11028867, 7216275, 7222732, 10000973723};
+    // long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
+    // if (ArrayBsearch(accountNumbers, accountNumber) == -1 && !MQLInfoInteger(MQL_TESTER))
+    // {
+    //     Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
+    //     ExpertRemove();
+    //     return INIT_FAILED;
+    // }
+    // else
+    // {
+    //     Print("The account " + (string)accountNumber + " is authorized to use this EA.");
+    // }
+    // if (TimeCurrent() < StringToTime("2025.01.01 00:00:00") && !MQLInfoInteger(MQL_TESTER))
+    // {
+    //     Print("This is a demo version of the EA. It will only work until January 1, 2025.");
+    // }
+    // else
+    // {
+    //     Print("This is a demo version of the EA. It will only work until January 1, 2025.");
+    //     ExpertRemove();
+    //     return INIT_FAILED;
+    // }
 
     // check user inputs
-    if (!CheckInputs())
-    {
-        ExpertRemove();
-        return INIT_PARAMETERS_INCORRECT;
-    }
+    // if (!CheckInputs())
+    // {
+    //     ExpertRemove();
+    //     return INIT_PARAMETERS_INCORRECT;
+    // }
 
     // set magic number
     InpMagicNumber = rand();
@@ -570,7 +570,6 @@ void BreakEven()
         {
             Print("Failed to select position by ticket");
             continue;
-            ;
         }
         long magic;
         if (!PositionGetInteger(POSITION_MAGIC, magic))
