@@ -54,10 +54,10 @@ string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
 string currencies[];
 
 input group "========= Risk settings =========";
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // Range time frame
-input double InpRisk = 0.1;                      // Risk size
-input double InpRiskReward = 1.0;                // Risk reward
-input double InpRiskMultiplier = 1.0;            // Risk multiplier
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
+input double InpRisk = 0.25;                      // Risk size
+input double InpRiskReward = 0.25;                // Risk reward
+double InpRiskMultiplier = 0.9;            // Risk multiplier
 
 input group "========= Extra settings =========";
 input int InpStopOut = 0;  // Stop out (0 = off)
@@ -71,7 +71,7 @@ enum NEWS_IMPORTANCE_ENUM
   IMPORTANCE_LOW     // LOW
 
 };
-input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_ALL; // News importance
+input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_HIGH; // News importance
 bool InpImportance_high = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_HIGH || InpImportance == IMPORTANCE_BOTH;
 bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_MEDIUM || InpImportance == IMPORTANCE_BOTH;
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
@@ -510,7 +510,7 @@ double GetPositionSize()
   if (PositionCount() == 0)
   {
     baseLots = Volume(AtrValue());
-    return baseLots * InpRiskMultiplier;
+    return baseLots;
   }
 
   int lastDirection = GetLastDirection();
@@ -618,21 +618,23 @@ void ShowLines()
     ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
     ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
 
-    // double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
-    // ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
-    // ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, clrGold);
-    // ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DOT);
+    double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
+    ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
+    ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, InpColorRange);
+    ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DASH);
 
-    // ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
-    // ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, clrGold);
-    // ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DOT);
+    ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
+    ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, InpColorRange);
+    ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DASH);
   }
-  if (upperLine == 0 || lowerLine == 0)
-  {
-    ObjectDelete(0, "upperLine");
-    ObjectDelete(0, "lowerLine");
-    ObjectDelete(0, "middleLine");
-  }
+   if (upperLine == 0 || lowerLine == 0)
+   {
+     ObjectDelete(0, "upperLine");
+     ObjectDelete(0, "lowerLine");
+     ObjectDelete(0, "middleLine");
+     ObjectDelete(0, "upperTP");
+     ObjectDelete(0, "lowerTP");
+   }
 }
 
 void ShowInfo()
@@ -643,7 +645,7 @@ void ShowInfo()
             "Upper line: ", upperLine, "\n",
             "Lower line: ", lowerLine, "\n",
             "Last direction: ", GetLastDirection(), "\n",
-            "lots: ", NormalizeDouble(GetPositionSize(), 2), "\n",
+            "lots: ", NormalizeDouble(baseLots, 2), "\n",
             "ATR: ", AtrValue(), "\n");
 }
 
