@@ -13,7 +13,6 @@ CTrade trade;
 
 input group "========= General settings =========";
 input long InpMagicNumber = 88888; // Magic number
-input int atrPeriod = 1000;         // ATR period
 enum CURRENCIES_ENUM
 {
   CURRENCY_SYMBOL, // SYMBOL
@@ -52,15 +51,16 @@ string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
                      : InpCurrencies == CURRENCY_USD  ? "USD"
                                                       : "";
 string currencies[];
+input bool InpFixedRisk = false; // Fixed risk
 
 input group "========= Risk settings =========";
 input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
-input double InpRisk = 0.25;                      // Risk size
-input double InpRiskReward = 0.25;                // Risk reward
-double InpRiskMultiplier = 0.9;            // Risk multiplier
+input double InpRisk = 0.3;                     // Risk size
+input double InpRiskReward = 0.3;               // Risk reward
+double InpRiskMultiplier = 0.9;                 // Risk multiplier
 
 input group "========= Extra settings =========";
-input int InpStopOut = 0;  // Stop out (0 = off)
+input int InpStopOut = 0;   // Stop out (0 = off)
 input int InpMaxHedges = 0; // Max hedges(0 = off)
 enum NEWS_IMPORTANCE_ENUM
 {
@@ -77,10 +77,10 @@ bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance =
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
 
 input group "========= Time filter =========";
-input int InpStartHour = -1;   // Start Hour (-1 = off)
+input int InpStartHour = -1;  // Start Hour (-1 = off)
 input int InpStartMinute = 0; // Start Minute
 input int InpEndHour = -1;    // End Hour (-1 = off)
-input int InpEndMinute = 0;  // End Minute
+input int InpEndMinute = 0;   // End Minute
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -98,7 +98,6 @@ input color InpColorRange = clrBlue; // Range color
 MqlCalendarValue news[];
 MqlTick tick;
 
-int atrHandle;
 double upperLine, lowerLine, baseLots;
 
 int OnInit()
@@ -113,7 +112,6 @@ int OnInit()
     return INIT_FAILED;
   }
 
-  atrHandle = iATR(Symbol(), InpTimeFrame, atrPeriod);
   trade.SetExpertMagicNumber(InpMagicNumber);
 
   if (MQLInfoInteger(MQL_TESTER))
@@ -423,6 +421,7 @@ bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
 
 double AtrValue()
 {
+  int atrHandle = iATR(Symbol(), InpTimeFrame, iBars(Symbol(), InpTimeFrame) - 1);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
   CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
@@ -431,12 +430,14 @@ double AtrValue()
   return result;
 }
 
+double startCapital = AccountInfoDouble(ACCOUNT_BALANCE);
 double Volume(double slDistance)
 {
+  double balance = InpFixedRisk? startCapital : AccountInfoDouble(ACCOUNT_BALANCE);
   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
-  double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * InpRisk * 0.01;
+  double riskMoney = balance * InpRisk * 0.01;
   double moneyLotStep = slDistance / tickSize * tickValue * lotStep;
   double lots = MathRound(riskMoney / moneyLotStep) * lotStep;
   double minVol = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MIN);
@@ -627,14 +628,14 @@ void ShowLines()
     ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, InpColorRange);
     ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DASH);
   }
-   if (upperLine == 0 || lowerLine == 0)
-   {
-     ObjectDelete(0, "upperLine");
-     ObjectDelete(0, "lowerLine");
-     ObjectDelete(0, "middleLine");
-     ObjectDelete(0, "upperTP");
-     ObjectDelete(0, "lowerTP");
-   }
+  if (upperLine == 0 || lowerLine == 0)
+  {
+    ObjectDelete(0, "upperLine");
+    ObjectDelete(0, "lowerLine");
+    ObjectDelete(0, "middleLine");
+    ObjectDelete(0, "upperTP");
+    ObjectDelete(0, "lowerTP");
+  }
 }
 
 void ShowInfo()
