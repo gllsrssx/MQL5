@@ -428,8 +428,7 @@ double AtrValue()
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
   CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
-  double spread = tick.ask - tick.bid;
-  double result = atrBuffer[0] + spread;
+  double result = atrBuffer[0];
 
   return NormalizeDouble(result, Digits());
 }
