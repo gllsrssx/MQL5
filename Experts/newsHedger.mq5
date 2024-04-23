@@ -334,7 +334,9 @@ bool IsNewsEvent()
 {
   if (PositionCount() > 0)
     return false;
-  if (!IsNewBar2(PERIOD_M5))
+if(upperLine > 0 || lowerLine > 0)
+    return false;
+  if (!IsNewBar2(PERIOD_M1))
     return false;
 
   MqlDateTime time;
@@ -380,7 +382,8 @@ bool IsNewsEvent()
       continue;
     if (!(country.currency == InpCurrency || InpCurrency == "" || InpCurrency == "ALL" || (InpCurrency == "SYMBOL" && (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT)))))
       continue;
-    if (value.time == iTime(Symbol(), PERIOD_M5, 0))
+
+    if (value.time - PeriodSeconds(PERIOD_M1) == iTime(Symbol(), PERIOD_M1, 0))
     {
       Print("News event detected: ", country.currency, " ", event.name, " ", value.time, " ", event.importance);
       return true;
@@ -421,19 +424,20 @@ bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
 
 double AtrValue()
 {
-  int atrHandle = iATR(Symbol(), InpTimeFrame, iBars(Symbol(), InpTimeFrame) - 1);
+  int atrHandle = iATR(Symbol(), InpTimeFrame, 1000);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
   CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
-  double result = NormalizeDouble(atrBuffer[0], Digits());
+  double spread = tick.ask - tick.bid;
+  double result = atrBuffer[0] + spread;
 
-  return result;
+  return NormalizeDouble(result, Digits());
 }
 
 double startCapital = AccountInfoDouble(ACCOUNT_BALANCE);
 double Volume(double slDistance)
 {
-  double balance = InpFixedRisk? startCapital : AccountInfoDouble(ACCOUNT_BALANCE);
+  double balance = InpFixedRisk ? startCapital : AccountInfoDouble(ACCOUNT_BALANCE);
   double tickSize = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_SIZE);
   double tickValue = SymbolInfoDouble(Symbol(), SYMBOL_TRADE_TICK_VALUE);
   double lotStep = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_STEP);
@@ -464,7 +468,7 @@ int GetLastDirection()
 
   double highestLotSize = 0;
   int lastDirection = 0;
-  for (int i = PositionCount() - 1; i >= 0; i--)
+  for (int i = PositionsTotal() - 1; i >= 0; i--)
   {
     ulong ticket = PositionGetTicket(i);
     if (!PositionSelectByTicket(ticket))
@@ -564,7 +568,7 @@ void TakeTrade()
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
 
-  if (upperLine == 0 || lowerLine == 0 || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
+  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
     return;
 
   int lastDirection = GetLastDirection();
@@ -585,7 +589,7 @@ void CloseTrades()
   if (PositionCount() == 0)
     return;
 
-  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01))
+  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || (AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01)))
   {
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
@@ -609,15 +613,15 @@ void ShowLines()
   {
     ObjectCreate(0, "upperLine", OBJ_HLINE, 0, TimeCurrent(), upperLine);
     ObjectSetInteger(0, "upperLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_DOT);
+    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_SOLID);
 
     ObjectCreate(0, "lowerLine", OBJ_HLINE, 0, TimeCurrent(), lowerLine);
     ObjectSetInteger(0, "lowerLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_DOT);
+    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_SOLID);
 
     ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
     ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DASH);
+    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DOT);
 
     double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
     ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
