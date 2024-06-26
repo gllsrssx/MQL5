@@ -54,9 +54,11 @@ string currencies[];
 input bool InpFixedRisk = false; // Fixed risk
 
 input group "========= Risk settings =========";
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
-input double InpRisk = 0.3;                     // Risk size
-input double InpRiskReward = 0.3;               // Risk reward
+//input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
+input int InpTimeFrame = 2;                    // Range time frame minutes
+// input int InpAtrPeriod = 1000;                  // ATR Period
+input double InpRisk = 0.1;                     // Risk size
+input double InpRiskReward = 0.1;               // Risk reward
 double InpRiskMultiplier = 0.9;                 // Risk multiplier
 
 input group "========= Extra settings =========";
@@ -71,15 +73,15 @@ enum NEWS_IMPORTANCE_ENUM
   IMPORTANCE_LOW     // LOW
 
 };
-input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_HIGH; // News importance
+input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_ALL; // News importance
 bool InpImportance_high = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_HIGH || InpImportance == IMPORTANCE_BOTH;
 bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_MEDIUM || InpImportance == IMPORTANCE_BOTH;
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
 
 input group "========= Time filter =========";
-input int InpStartHour = -1;  // Start Hour (-1 = off)
+input int InpStartHour = 1;  // Start Hour (-1 = off)
 input int InpStartMinute = 0; // Start Minute
-input int InpEndHour = -1;    // End Hour (-1 = off)
+input int InpEndHour = 22;    // End Hour (-1 = off)
 input int InpEndMinute = 0;   // End Minute
 
 input bool InpMonday = true;    // Monday
@@ -102,16 +104,15 @@ double upperLine, lowerLine, baseLots;
 
 int OnInit()
 {
-  long accountNumbers[] = {11028867, 7216275, 7222732, 10000973723, 11153072};
-  long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
-  if (ArrayBsearch(accountNumbers, accountNumber) == -1 || TimeCurrent() > StringToTime("2025.01.01 00:00:00"))
+  //long accountNumbers[] = {11028867, 7216275, 7222732, 10000973723, 11153072};
+  //long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
+  if (TimeCurrent() > StringToTime("2025.01.01 00:00:00") ) // || ArrayBsearch(accountNumbers, accountNumber) == -1)
   {
     Print("This is a demo version of the EA. It will only work until January 1, 2025.");
-    Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
+    //Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
     ExpertRemove();
-    return INIT_FAILED;
   }
-
+ 
   trade.SetExpertMagicNumber(InpMagicNumber);
 
   if (MQLInfoInteger(MQL_TESTER))
@@ -122,8 +123,20 @@ int OnInit()
   ObjectsDeleteAll(0);
   ChartRedraw();
 
-  Comment("EA running successfully");
-  Print("EA running successfully");
+  string messageWarning = "WARNING: chart must always be H1 timeframe!";
+  string messageSucces = "SUCCES: EA running successfully.";
+  
+  if (Period() != PERIOD_H1) {
+   Print(messageWarning+" Removing EA.");
+   Comment(messageWarning+" Removing EA.");
+   ExpertRemove(); 
+   return INIT_FAILED;
+  } 
+  else {
+   Print(messageWarning+"\n"+messageSucces);
+   Comment(messageWarning+"\n"+messageSucces);
+  }
+  
   return INIT_SUCCEEDED;
 }
 
@@ -383,7 +396,7 @@ if(upperLine > 0 || lowerLine > 0)
     if (!(country.currency == InpCurrency || InpCurrency == "" || InpCurrency == "ALL" || (InpCurrency == "SYMBOL" && (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT)))))
       continue;
 
-    if (value.time - PeriodSeconds(PERIOD_M1) == iTime(Symbol(), PERIOD_M1, 0))
+    if (value.time == iTime(Symbol(), PERIOD_M1, 0))
     {
       Print("News event detected: ", country.currency, " ", event.name, " ", value.time, " ", event.importance);
       return true;
@@ -424,13 +437,20 @@ bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
 
 double AtrValue()
 {
-  int atrHandle = iATR(Symbol(), InpTimeFrame, 1000);
+  int atrHandle = iATR(Symbol(), PERIOD_H1, 120);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
-  CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
-  double result = atrBuffer[0];
+  CopyBuffer(atrHandle, 0, 0, 2, atrBuffer);
+  double buffer = atrBuffer[0];
+  buffer = NormalizeDouble(buffer, Digits());
+  double divider = InpTimeFrame;
+  double period = divider / 60.0;
+  double result = buffer * period;
+  result = NormalizeDouble(result, Digits());
 
-  return NormalizeDouble(result, Digits());
+  if (result <= 0) Print(" WARNING: ATR malfunction. Please contact DEV. ");
+
+  return result;
 }
 
 double startCapital = AccountInfoDouble(ACCOUNT_BALANCE);
@@ -558,8 +578,10 @@ void CalculateZone()
   if (PositionCount() > 0 || !IsNewsEvent())
     return;
   double atrValue = AtrValue();
+  if (atrValue<=0) Print("WARNING: ATR value = "+(string)atrValue);
   upperLine = NormalizeDouble(tick.last + atrValue, Digits());
   lowerLine = NormalizeDouble(tick.last - atrValue, Digits());
+  Print("INFO: Calculated zone.");
 }
 
 void TakeTrade()
@@ -567,12 +589,12 @@ void TakeTrade()
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
 
-  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid) * 2 > upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
+  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid)*4 >= upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
     return;
 
   int lastDirection = GetLastDirection();
   double lots = GetPositionSize();
-
+  
   if (tick.last > upperLine && lastDirection != 1)
   {
     trade.Buy(NormalizeDouble(lots, 2));
@@ -646,11 +668,12 @@ void ShowInfo()
   if (InpShowInfo)
     Comment("Server time: ", TimeCurrent(), "\n",
             "Last price: ", tick.last, "\n",
+            "Spread: ", NormalizeDouble(tick.ask-tick.bid,Digits()), "\n",
+            "ATR: ", AtrValue(), "\n",
             "Upper line: ", upperLine, "\n",
             "Lower line: ", lowerLine, "\n",
             "Last direction: ", GetLastDirection(), "\n",
-            "lots: ", NormalizeDouble(baseLots, 2), "\n",
-            "ATR: ", AtrValue(), "\n");
+            "lots: ", NormalizeDouble(baseLots, 2), "\n" );
 }
 
 int MaxHedges()
