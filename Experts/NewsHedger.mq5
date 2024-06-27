@@ -51,15 +51,15 @@ string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
                      : InpCurrencies == CURRENCY_USD  ? "USD"
                                                       : "";
 string currencies[];
-input bool InpFixedRisk = false; // Fixed risk
+bool InpFixedRisk = false; // Fixed risk
 
 input group "========= Risk settings =========";
 //input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
-input int InpTimeFrame = 2;                    // Range time frame minutes
+input int InpTimeFrame = 20;                    // Range time frame minutes
 // input int InpAtrPeriod = 1000;                  // ATR Period
-input double InpRisk = 0.1;                     // Risk size
-input double InpRiskReward = 0.1;               // Risk reward
-double InpRiskMultiplier = 0.9;                 // Risk multiplier
+input double InpRisk = 0.5;                     // Risk size
+input double InpRiskReward = 2.0;               // Risk reward
+input double InpRiskMultiplier = 1.25;                 // Risk multiplier
 
 input group "========= Extra settings =========";
 input int InpStopOut = 0;   // Stop out (0 = off)
@@ -79,9 +79,9 @@ bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance =
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
 
 input group "========= Time filter =========";
-input int InpStartHour = 1;  // Start Hour (-1 = off)
+input int InpStartHour = 2;  // Start Hour (-1 = off)
 input int InpStartMinute = 0; // Start Minute
-input int InpEndHour = 22;    // End Hour (-1 = off)
+input int InpEndHour = 18;    // End Hour (-1 = off)
 input int InpEndMinute = 0;   // End Minute
 
 input bool InpMonday = true;    // Monday
@@ -354,11 +354,11 @@ if(upperLine > 0 || lowerLine > 0)
 
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
-  if ((time.hour < InpStartHour || time.hour > InpEndHour) && InpStartHour > -1)
+  if ((time.hour < InpStartHour || time.hour > InpEndHour) && InpStartHour > 0)
     return false;
-  if (time.hour == InpStartHour && time.min < InpStartMinute && InpStartHour > -1)
+  if (time.hour == InpStartHour && time.min < InpStartMinute && InpStartHour > 0)
     return false;
-  if (time.hour == InpEndHour && time.min > InpEndMinute && InpEndHour > -1)
+  if (time.hour == InpEndHour && time.min > InpEndMinute && InpEndHour > 0)
     return false;
 
   if ((time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
@@ -589,7 +589,7 @@ void TakeTrade()
   MqlDateTime time;
   TimeToStruct(TimeCurrent(), time);
 
-  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid)*4 >= upperLine - lowerLine) || ((time.hour < InpStartHour || time.hour > InpEndHour || (time.hour == InpStartHour && time.min < InpStartMinute) || (time.hour == InpEndHour && time.min > InpEndMinute)) && InpStartHour > -1 && InpEndHour > -1) || (time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
+  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid)*2 >= upperLine - lowerLine))
     return;
 
   int lastDirection = GetLastDirection();
@@ -610,7 +610,7 @@ void CloseTrades()
   if (PositionCount() == 0)
     return;
 
-  if ((AccountInfoDouble(ACCOUNT_EQUITY) < AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || (AccountInfoDouble(ACCOUNT_EQUITY) > AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01)))
+  if ((AccountInfoDouble(ACCOUNT_EQUITY) <= AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || (AccountInfoDouble(ACCOUNT_EQUITY) >= AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01)))
   {
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
