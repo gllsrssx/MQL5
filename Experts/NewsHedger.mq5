@@ -1,18 +1,14 @@
-//+------------------------------------------------------------------+
-//|                                                   NewsHedger.mq5 |
-//|                                  Copyright 2023, MetaQuotes Ltd. |
-//|                                             https://www.mql5.com |
-//+------------------------------------------------------------------+
-#property copyright "Copyright 2023, MetaQuotes Ltd."
-#property link "https://www.mql5.com"
-#property version "1.00"
-#property description "This EA starts a hedge trade when a high impact news event is detected."
+
+#property copyright "Copyright 2024, GllsRssx Ltd."
+#property link "https://www.rssx.eu"
+#property version "2.0"
+#property description "This EA starts a hedge trade with recovery zone when a news event is detected."
 
 #include <Trade\Trade.mqh>
 CTrade trade;
 
-input group "========= General settings =========";
-input long InpMagicNumber = 88888; // Magic number
+input group "========= General =========";
+input long InpMagicNumber = 8888888; // Magic number
 enum CURRENCIES_ENUM
 {
   CURRENCY_SYMBOL, // SYMBOL
@@ -53,36 +49,50 @@ string InpCurrency = InpCurrencies == CURRENCY_SYMBOL ? "SYMBOL"
 string currencies[];
 bool InpFixedRisk = false; // Fixed risk
 
-input group "========= Risk settings =========";
-//input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_H1; // Range time frame
-input int InpTimeFrame = 20;                    // Range time frame minutes
-// input int InpAtrPeriod = 1000;                  // ATR Period
-input double InpRisk = 0.5;                     // Risk size
-input double InpRiskReward = 2.0;               // Risk reward
-input double InpRiskMultiplier = 1.25;                 // Risk multiplier
 
-input group "========= Extra settings =========";
-input int InpStopOut = 0;   // Stop out (0 = off)
-input int InpMaxHedges = 0; // Max hedges(0 = off)
+input group "========= Risk =========";
+input double InpRisk = 0.1;                     // Risk size
+input double InpRiskReward = 1.0;               // Risk reward
+ double InpRiskMultiplier = 1;                 // Risk multiplier
+
+
+input group "========= Advanced =========";
+input int InpTimeFrame = 60; // Range time frame minutes
+//input int InpTimeFrame = 30;                    // Range time frame minutes
+// input int InpAtrPeriod = 1000;                  // ATR Period
+
+input int InpFastEntry = 0; // fast entry minutes (0=off)
+input ENUM_TIMEFRAMES InpFrequecy = PERIOD_M1; // trade frequency
+
 enum NEWS_IMPORTANCE_ENUM
 {
   IMPORTANCE_ALL,    // ALL
-  IMPORTANCE_BOTH,   // HIGH and MEDIUM
   IMPORTANCE_HIGH,   // HIGH
   IMPORTANCE_MEDIUM, // MEDIUM
-  IMPORTANCE_LOW     // LOW
-
+  IMPORTANCE_LOW,    // LOW
+  IMPORTANCE_BOTH,   // H&M
+  IMPORTANCE_NOT_LOW,// NL
 };
 input NEWS_IMPORTANCE_ENUM InpImportance = IMPORTANCE_ALL; // News importance
-bool InpImportance_high = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_HIGH || InpImportance == IMPORTANCE_BOTH;
-bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_MEDIUM || InpImportance == IMPORTANCE_BOTH;
+bool InpImportance_high = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_HIGH || InpImportance == IMPORTANCE_BOTH || InpImportance == IMPORTANCE_NOT_LOW;
+bool InpImportance_moderate = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_MEDIUM || InpImportance == IMPORTANCE_BOTH || InpImportance == IMPORTANCE_NOT_LOW;
 bool InpImportance_low = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_LOW;
+bool InpImportance_all = InpImportance == IMPORTANCE_ALL || InpImportance == IMPORTANCE_NOT_LOW;
 
-input group "========= Time filter =========";
-input int InpStartHour = 2;  // Start Hour (-1 = off)
-input int InpStartMinute = 0; // Start Minute
-input int InpEndHour = 18;    // End Hour (-1 = off)
-input int InpEndMinute = 0;   // End Minute
+input group "========= Extra =========";
+input bool InpFastExitHedge = false; // fast exit
+input bool InpBreakEvenHedge = false; // break even
+input int InpStopOut = 0;   // Stop out (0 = off)
+input int InpMaxHedges = 0; // Max hedges(0 = off)
+ 
+input group "========= Time =========";
+ int InpTimezone = 0;           // Timezone
+input bool InpDaylightSaving = false; // DST zone
+int DSToffset;                       // DST offset
+
+input int InpStartHour = 6;  // Start Hour (0 = off)
+input int InpEndHour = 18;    // End Hour (0 = off)
+ int StartHour, EndHour;
 
 input bool InpMonday = true;    // Monday
 input bool InpTuesday = true;   // Tuesday
@@ -92,13 +102,14 @@ input bool InpFriday = true;    // Friday
 input bool InpSaturday = false; // Saturday
 input bool InpSunday = false;   // Sunday
 
-input group "========= Plot settings =========";
+input group "========= Plot =========";
 input bool InpShowInfo = true;       // Show Info
-input bool InpShowLines = true;      // Show Lines
-input color InpColorRange = clrBlue; // Range color
+input bool InpShowLines = true;      // Show Range
+//input color InpColorRange = clrBlue; // Range color
 
 MqlCalendarValue news[];
 MqlTick tick;
+MqlDateTime time;
 
 double upperLine, lowerLine, baseLots;
 
@@ -108,7 +119,7 @@ int OnInit()
   //long accountNumber = AccountInfoInteger(ACCOUNT_LOGIN);
   if (TimeCurrent() > StringToTime("2025.01.01 00:00:00") ) // || ArrayBsearch(accountNumbers, accountNumber) == -1)
   {
-    Print("This is a demo version of the EA. It will only work until January 1, 2025.");
+    Print("INFO: This is a demo version of the EA. It will only work until January 1, 2025.");
     //Print("The account " + (string)accountNumber + " is not authorized to use this EA.");
     ExpertRemove();
   }
@@ -116,43 +127,36 @@ int OnInit()
   trade.SetExpertMagicNumber(InpMagicNumber);
 
   if (MQLInfoInteger(MQL_TESTER))
-    Print("Please run the EA in real mode first to download the history.");
+    Print("INFO: Please run the EA in real mode first to download the history.");
   else
     downloadNews();
 
   ObjectsDeleteAll(0);
   ChartRedraw();
 
-  string messageWarning = "WARNING: chart must always be H1 timeframe!";
   string messageSucces = "SUCCES: EA running successfully.";
   
-  if (Period() != PERIOD_H1) {
-   Print(messageWarning+" Removing EA.");
-   Comment(messageWarning+" Removing EA.");
-   ExpertRemove(); 
-   return INIT_FAILED;
-  } 
-  else {
-   Print(messageWarning+"\n"+messageSucces);
-   Comment(messageWarning+"\n"+messageSucces);
-  }
-  
+  Print(messageSucces);
+  Comment(messageSucces);
   return INIT_SUCCEEDED;
 }
 
 void OnDeinit(const int reason)
 {
-  ObjectsDeleteAll(0);
-  ChartRedraw();
+  //ObjectsDeleteAll(0);
+  //ChartRedraw();
   MaxHedges();
-  Print("EA stopped!");
+  Print("MaxPos: ",maxPos);
+  Print("INFO: EA stopped!");
   if (!MQLInfoInteger(MQL_TESTER))
-    Comment("EA stopped!");
+    Comment("INFO: EA stopped!");
 }
 
 void OnTick()
 {
+  TimeToStruct(TimeCurrent(), time);
   SymbolInfoTick(Symbol(), tick);
+  tick.last = NormalizeDouble((tick.ask + tick.bid) / 2, Digits());
   Main();
 }
 
@@ -328,7 +332,7 @@ bool getBTnews(long period, economicNews &newsBT[])
 int totalBarsCal;
 void GetCalendarValue()
 {
-  if (!IsNewBar1(PERIOD_D1))
+  if (!IsNewBar(PERIOD_D1, barsTotal1))
     return;
   if (MQLInfoInteger(MQL_TESTER))
   {
@@ -342,27 +346,22 @@ void GetCalendarValue()
   CalendarValueHistory(news, startTime, endTime, NULL, NULL);
 }
 
+datetime iDay;
+datetime holiDay;
 int totalBarsEvent;
 bool IsNewsEvent()
 {
-  if (PositionCount() > 0)
-    return false;
-if(upperLine > 0 || lowerLine > 0)
-    return false;
-  if (!IsNewBar2(PERIOD_M1))
+  if (!IsNewBar(InpFrequecy, barsTotal2) || upperLine > 0 || lowerLine > 0 || PositionCount() > 0)
     return false;
 
-  MqlDateTime time;
-  TimeToStruct(TimeCurrent(), time);
-  if ((time.hour < InpStartHour || time.hour > InpEndHour) && InpStartHour > 0)
-    return false;
-  if (time.hour == InpStartHour && time.min < InpStartMinute && InpStartHour > 0)
-    return false;
-  if (time.hour == InpEndHour && time.min > InpEndMinute && InpEndHour > 0)
+  if ((time.hour < StartHour && InpStartHour > 0) || (time.hour >= EndHour && InpEndHour > 0) )
     return false;
 
   if ((time.day_of_week == 0 && !InpSunday) || (time.day_of_week == 1 && !InpMonday) || (time.day_of_week == 2 && !InpTuesday) || (time.day_of_week == 3 && !InpWednesday) || (time.day_of_week == 4 && !InpThursday) || (time.day_of_week == 5 && !InpFriday) || (time.day_of_week == 6 && !InpSaturday))
     return false;
+
+  iDay = iTime(Symbol(), PERIOD_D1, 0);
+  if(holiDay==iDay)return false;
 
   GetCalendarValue();
   int amount = MQLInfoInteger(MQL_TESTER) ? ArraySize(newsHist) : ArraySize(news);
@@ -384,17 +383,16 @@ if(upperLine > 0 || lowerLine > 0)
       CalendarValueById(news[i].id, value);
       CalendarCountryById(event.country_id, country);
     }
-
-    if (event.importance == CALENDAR_IMPORTANCE_NONE)
-      continue;
-    if (event.importance == CALENDAR_IMPORTANCE_LOW && !InpImportance_low)
-      continue;
-    if (event.importance == CALENDAR_IMPORTANCE_MODERATE && !InpImportance_moderate)
-      continue;
-    if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high)
-      continue;
+    
     if (!(country.currency == InpCurrency || InpCurrency == "" || InpCurrency == "ALL" || (InpCurrency == "SYMBOL" && (country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(Symbol(), SYMBOL_CURRENCY_PROFIT)))))
       continue;
+    if (event.type == CALENDAR_TYPE_HOLIDAY && (value.time > iDay && value.time < iDay+PeriodSeconds(PERIOD_D1))) {holiDay=iDay;return false;} 
+    
+    if (event.importance == CALENDAR_IMPORTANCE_NONE && !InpImportance_all) continue;
+    if (event.importance == CALENDAR_IMPORTANCE_LOW && !InpImportance_low) continue;
+    if (event.importance == CALENDAR_IMPORTANCE_MODERATE && !InpImportance_moderate) continue;
+    if (event.importance == CALENDAR_IMPORTANCE_HIGH && !InpImportance_high) continue;
+    
 
     if (value.time == iTime(Symbol(), PERIOD_M1, 0))
     {
@@ -415,40 +413,28 @@ bool arrayContains(string &arr[], string value)
   return false;
 }
 
-int barsTotal1, barsTotal2;
-bool IsNewBar1(ENUM_TIMEFRAMES timeFrame)
+int barsTotal1, barsTotal2, barsTotal3;
+bool IsNewBar(ENUM_TIMEFRAMES timeFrame, int &barsTotal)
 {
   int bars = iBars(Symbol(), timeFrame);
-  if (bars == barsTotal1)
+  if (bars == barsTotal)
     return false;
 
-  barsTotal1 = bars;
-  return true;
-}
-bool IsNewBar2(ENUM_TIMEFRAMES timeFrame)
-{
-  int bars = iBars(Symbol(), timeFrame);
-  if (bars == barsTotal2)
-    return false;
-
-  barsTotal2 = bars;
+  barsTotal = bars;
   return true;
 }
 
+//int atrPeriod = PeriodSeconds(InpTimeFrame <= PERIOD_D1? PERIOD_W1 : PERIOD_M4) / PeriodSeconds(InpTimeFrame);
 double AtrValue()
 {
-  int atrHandle = iATR(Symbol(), PERIOD_H1, 120);
+  int atrHandle = iATR(Symbol(), PERIOD_H1, 480);
   double atrBuffer[];
   ArraySetAsSeries(atrBuffer, true);
-  CopyBuffer(atrHandle, 0, 0, 2, atrBuffer);
-  double buffer = atrBuffer[0];
-  buffer = NormalizeDouble(buffer, Digits());
-  double divider = InpTimeFrame;
-  double period = divider / 60.0;
-  double result = buffer * period;
-  result = NormalizeDouble(result, Digits());
+  CopyBuffer(atrHandle, 0, 0, 1, atrBuffer);
+  double value = atrBuffer[0] /60 *InpTimeFrame ;
+  double result = NormalizeDouble(value,Digits());
 
-  if (result <= 0) Print(" WARNING: ATR malfunction. Please contact DEV. ");
+  if (result <= 0 && time.hour > 1) Print(" WARNING: ATR malfunction. Please contact DEV. ");
 
   return result;
 }
@@ -531,12 +517,10 @@ int PositionCount()
 
 double GetPositionSize()
 {
-  if (PositionCount() == 0)
-  {
-    baseLots = Volume(AtrValue());
-    return baseLots;
-  }
-
+  baseLots = Volume(upperLine-lowerLine);
+  if (PositionCount() == 0) return baseLots;
+  if (InpBreakEvenHedge && !InpFastExitHedge) baseLots=0;
+  
   int lastDirection = GetLastDirection();
   double openBuyLots = 0;
   double openSellLots = 0;
@@ -559,13 +543,14 @@ double GetPositionSize()
     }
   }
 
+  double RiskMultiplier = InpFastExitHedge && PositionCount()>0? 1 + (PositionCount()/2*0.1) : 1;
   if (lastDirection == 1)
   {
-    return (((((InpRiskReward + 1) / InpRiskReward) * openBuyLots - openSellLots) * 2 + baseLots) * InpRiskMultiplier);
+    return (((((InpRiskReward + 1) / InpRiskReward) * openBuyLots - openSellLots) + baseLots) * RiskMultiplier);
   }
   else if (lastDirection == -1)
   {
-    return (((((InpRiskReward + 1) / InpRiskReward) * openSellLots - openBuyLots) * 2 + baseLots) * InpRiskMultiplier);
+    return (((((InpRiskReward + 1) / InpRiskReward) * openSellLots - openBuyLots) + baseLots) * RiskMultiplier);
   }
   else
   {
@@ -573,44 +558,71 @@ double GetPositionSize()
   }
 }
 
+  double  PS1 = PeriodSeconds(PERIOD_H1) /60 * InpTimeFrame;
+  double  PS2 = InpFastEntry > 0? PeriodSeconds(PERIOD_H1) /60 *InpFastEntry:PS1/2;
+  double fastEntry = PS1/PS2;
+datetime calculatedZoneTime;
+double upperEntry, lowerEntry;
 void CalculateZone()
 {
+  if(PositionCount() == 0 && TimeCurrent() > calculatedZoneTime+PS2 && upperLine != 0 && lowerLine != 0) {
+     upperLine = 0;
+     lowerLine = 0;
+     upperEntry=0;
+     lowerEntry=0;
+    }
   if (PositionCount() > 0 || !IsNewsEvent())
     return;
-  double atrValue = AtrValue();
+  double atrValue = AtrValue()/2;
   if (atrValue<=0) Print("WARNING: ATR value = "+(string)atrValue);
   upperLine = NormalizeDouble(tick.last + atrValue, Digits());
   lowerLine = NormalizeDouble(tick.last - atrValue, Digits());
+  calculatedZoneTime = TimeCurrent();
+  upperEntry = NormalizeDouble(tick.last + (atrValue*2/fastEntry), Digits());
+  lowerEntry = NormalizeDouble(tick.last - (atrValue*2/fastEntry), Digits());
   Print("INFO: Calculated zone.");
 }
 
 void TakeTrade()
 {
-  MqlDateTime time;
-  TimeToStruct(TimeCurrent(), time);
+   if(holiDay==iDay)return ;
+   
+  int posC = PositionCount();
 
-  if ((upperLine == 0 || lowerLine == 0) || ((tick.ask - tick.bid)*2 >= upperLine - lowerLine))
+  if ((upperLine == 0 || lowerLine == 0) || (tick.ask - tick.bid)*4 >= upperLine - lowerLine || (((time.hour < StartHour && InpStartHour > 0) || (time.hour >= EndHour && InpEndHour > 0)) && posC == 0))
     return;
 
   int lastDirection = GetLastDirection();
   double lots = GetPositionSize();
+  double maxlot = SymbolInfoDouble(Symbol(), SYMBOL_VOLUME_MAX);
   
-  if (tick.last > upperLine && lastDirection != 1)
-  {
-    trade.Buy(NormalizeDouble(lots, 2));
+  if (tick.ask >= (posC == 0 ? upperEntry : upperLine) && lastDirection != 1) {
+    while (lots > 0){
+      trade.Buy(NormalizeDouble(lots > maxlot ? maxlot : lots, 2));
+      lots -= maxlot;
+      if(posC==0&&PositionCount()==1){double diff=upperLine-lowerLine; upperLine=upperEntry;lowerLine=upperEntry-diff;}
+    }
   }
-  if (tick.last < lowerLine && lastDirection != -1)
-  {
-    trade.Sell(NormalizeDouble(lots, 2));
+  if (tick.bid <= (posC == 0 ? lowerEntry : lowerLine) && lastDirection != -1) {
+    while (lots > 0){
+      trade.Sell(NormalizeDouble(lots > maxlot ? maxlot : lots, 2));
+      lots -= maxlot;
+      if(posC==0&&PositionCount()==1){double diff=upperLine-lowerLine; lowerLine=lowerEntry;upperLine=lowerEntry+diff;}
+    }
   }
+  
 }
 
 void CloseTrades()
 {
   if (PositionCount() == 0)
     return;
-
-  if ((AccountInfoDouble(ACCOUNT_EQUITY) <= AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges) || (AccountInfoDouble(ACCOUNT_EQUITY) >= AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01)))
+   
+  bool tradeLoss = ((AccountInfoDouble(ACCOUNT_EQUITY) <= AccountInfoDouble(ACCOUNT_BALANCE) * InpStopOut * 0.01 && InpStopOut > 0) || (InpMaxHedges > 0 && PositionCount() > InpMaxHedges));
+  bool tradeWin = AccountInfoDouble(ACCOUNT_EQUITY) >= AccountInfoDouble(ACCOUNT_BALANCE) * (1 + InpRisk * InpRiskReward * 0.01);
+  bool tradeBe = AccountInfoDouble(ACCOUNT_EQUITY) >= AccountInfoDouble(ACCOUNT_BALANCE) && PositionCount() >1 && InpBreakEvenHedge;
+  
+  if ( tradeLoss || tradeWin || tradeBe )
   {
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
@@ -624,43 +636,56 @@ void CloseTrades()
     }
     upperLine = 0;
     lowerLine = 0;
+    upperEntry =0;
+    lowerEntry=0;
   }
 }
+
+datetime drawStartTime=0;
 void ShowLines()
 {
-  if (!InpShowLines)
-    return;
+  if (!InpShowLines) return;   
   if (upperLine > 0 && lowerLine > 0)
-  {
-    ObjectCreate(0, "upperLine", OBJ_HLINE, 0, TimeCurrent(), upperLine);
-    ObjectSetInteger(0, "upperLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "upperLine", OBJPROP_STYLE, STYLE_SOLID);
+{
+    if(drawStartTime==0) drawStartTime = TimeCurrent();
+    datetime drawStopTime = TimeCurrent();
+    double tpPoints = (upperLine - lowerLine) * InpRiskReward;
+    
+   // double middleL = (upperLine-lowerLine)/2 + lowerLine;
+    
+   // ObjectCreate(0,middleL, OBJ_HLINE, 0, drawStartTime, middleL);
+    //ObjectSetInteger(0,middleL, OBJPROP_COLOR,clrBlue);
+    int posC = PositionCount();
+    double ul = (posC == 0 ? upperEntry : upperLine);
+    double ll = (posC == 0 ? lowerEntry : lowerLine);
+    // Create the rectangle for the range
+    ObjectCreate(0, "rangeBox "+ (string)drawStartTime, OBJ_RECTANGLE, 0, drawStartTime, ul, drawStopTime, ll);
+    ObjectSetInteger(0, "rangeBox "+ (string)drawStartTime, OBJPROP_COLOR, clrRed);
+    ObjectSetInteger(0, "rangeBox "+ (string)drawStartTime, OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "rangeBox "+ (string)drawStartTime, OBJPROP_WIDTH, 1);
+    ObjectSetInteger(0, "rangeBox "+ (string)drawStartTime, OBJPROP_BACK, true); // Set the box in the background
+    ObjectSetInteger(0, "rangeBox "+ (string)drawStartTime, OBJPROP_FILL, true); // Fill the box
 
-    ObjectCreate(0, "lowerLine", OBJ_HLINE, 0, TimeCurrent(), lowerLine);
-    ObjectSetInteger(0, "lowerLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "lowerLine", OBJPROP_STYLE, STYLE_SOLID);
+    // Create the upper TP box
+    ObjectCreate(0, "rangeAboveBox "+ (string)drawStartTime, OBJ_RECTANGLE, 0, drawStartTime, ul, drawStopTime, ul+tpPoints);
+    ObjectSetInteger(0, "rangeAboveBox "+ (string)drawStartTime, OBJPROP_COLOR, clrGreen);
+    ObjectSetInteger(0, "rangeAboveBox "+ (string)drawStartTime, OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "rangeAboveBox "+ (string)drawStartTime, OBJPROP_WIDTH, 1);
+    ObjectSetInteger(0, "rangeAboveBox "+ (string)drawStartTime, OBJPROP_BACK, true); // Set the box in the background
+    ObjectSetInteger(0, "rangeAboveBox "+ (string)drawStartTime, OBJPROP_FILL, true); // Fill the box
 
-    ObjectCreate(0, "middleLine", OBJ_HLINE, 0, TimeCurrent(), (upperLine + lowerLine) / 2);
-    ObjectSetInteger(0, "middleLine", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "middleLine", OBJPROP_STYLE, STYLE_DOT);
-
-    double tpPoints = ((upperLine - lowerLine) / 2) * InpRiskReward;
-    ObjectCreate(0, "upperTP", OBJ_HLINE, 0, TimeCurrent(), upperLine + tpPoints);
-    ObjectSetInteger(0, "upperTP", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "upperTP", OBJPROP_STYLE, STYLE_DASH);
-
-    ObjectCreate(0, "lowerTP", OBJ_HLINE, 0, TimeCurrent(), lowerLine - tpPoints);
-    ObjectSetInteger(0, "lowerTP", OBJPROP_COLOR, InpColorRange);
-    ObjectSetInteger(0, "lowerTP", OBJPROP_STYLE, STYLE_DASH);
-  }
-  if (upperLine == 0 || lowerLine == 0)
-  {
-    ObjectDelete(0, "upperLine");
-    ObjectDelete(0, "lowerLine");
-    ObjectDelete(0, "middleLine");
-    ObjectDelete(0, "upperTP");
-    ObjectDelete(0, "lowerTP");
-  }
+    // Create the lower TP box
+    ObjectCreate(0, "rangeBelowBox "+ (string)drawStartTime, OBJ_RECTANGLE, 0, drawStartTime, ll, drawStopTime, ll-tpPoints);
+    ObjectSetInteger(0, "rangeBelowBox "+ (string)drawStartTime, OBJPROP_COLOR, clrGreen);
+    ObjectSetInteger(0, "rangeBelowBox "+ (string)drawStartTime, OBJPROP_STYLE, STYLE_SOLID);
+    ObjectSetInteger(0, "rangeBelowBox "+ (string)drawStartTime, OBJPROP_WIDTH, 1);
+    ObjectSetInteger(0, "rangeBelowBox "+ (string)drawStartTime, OBJPROP_BACK, true); // Set the box in the background
+    ObjectSetInteger(0, "rangeBelowBox "+ (string)drawStartTime, OBJPROP_FILL, true); // Fill the box
+   }
+   else
+     {
+         drawStartTime=0;
+     }
 }
 
 void ShowInfo()
@@ -672,6 +697,10 @@ void ShowInfo()
             "ATR: ", AtrValue(), "\n",
             "Upper line: ", upperLine, "\n",
             "Lower line: ", lowerLine, "\n",
+            "upper entry: ", upperEntry, "\n",
+            "Lower enty: ", lowerEntry, "\n",
+            "fast enty: ", fastEntry, "\n",
+            "max pos: ", maxPos, "\n",
             "Last direction: ", GetLastDirection(), "\n",
             "lots: ", NormalizeDouble(baseLots, 2), "\n" );
 }
@@ -696,7 +725,59 @@ void Hedger()
   ShowInfo();
 }
 
+int maxPos=0;
 void Main()
 {
   Hedger();
+  DSTAdjust();
+  
+  int currPos = PositionCount();
+  maxPos = currPos > maxPos ? currPos : maxPos;
+}
+
+
+// function to get DST offset
+int DSTOffset()
+{
+  int offset = InpTimezone;
+  if (!InpDaylightSaving)
+    return offset;
+
+  string current_date = TimeToString(TimeCurrent(), TIME_DATE); // gets result as "yyyy.mm.dd",
+  long month = StringToInteger(StringSubstr(current_date, 5, 2));
+  long day = StringToInteger(StringSubstr(current_date, 8, 2));
+
+  // check if we are in DST
+  int DST_start_month = 3; // March
+  int DST_start_day = 11;  // average second Sunday
+  int DST_end_month = 10;  // October
+  int DST_end_day = 4;     // average first Sunday
+
+  if (month > DST_start_month && month < DST_end_month)
+  {
+    offset++;
+  }
+  else if (month == DST_start_month && day > DST_start_day)
+  {
+    offset++;
+  }
+  else if (month == DST_end_month && day < DST_end_day)
+  {
+    offset++;
+  }
+
+  return offset;
+}
+
+void DSTAdjust()
+{
+  if (!IsNewBar(PERIOD_D1, barsTotal3))
+    return;
+
+  // get DST offset
+  DSToffset = DSTOffset();
+
+  // adjust range times
+  StartHour = InpStartHour + DSToffset;       
+  EndHour = InpEndHour + DSToffset; 
 }
