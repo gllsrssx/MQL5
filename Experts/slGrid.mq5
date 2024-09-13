@@ -72,8 +72,8 @@ int OnInit()
     }
 
     atrHandle = iATR(symbolName, InpTimeFrame, AtrPeriod);
-    //maHandle = iMA(symbolName, InpTimeFrame, MA_Period, 0, MA_Method, MA_Price);
-    // Initialize grid size
+    // maHandle = iMA(symbolName, InpTimeFrame, MA_Period, 0, MA_Method, MA_Price);
+    //  Initialize grid size
     gridSize = NormalizeDouble(AtrValue(), Digits());
 
     trade.SetExpertMagicNumber(magicNumber);
@@ -89,14 +89,15 @@ void OnTick()
     MovingAverage();
     SymbolInfoTick(symbolName, lastTick);
     lastTick.last = iClose(symbolName, PERIOD_CURRENT, 0);
-    if (IsNewBar(PERIOD_M1, barsTotalNewsEvent)) newsFlag = IsNewsEvent();
+    if (IsNewBar(PERIOD_M1, barsTotalNewsEvent))
+        newsFlag = IsNewsEvent();
     CommentFunction();
     if (((hour >= 22 || hour < 2) && CountPositions() == 0) || (CountPositions() == 0 && newsFlag && NewsFilter) || gridSize == 0)
     {
         CloseAllOrders();
         gridSize = NormalizeDouble(AtrValue(), Digits());
         return;
-    } 
+    }
     UpdateGridLevels();
     ManageTrades();
 }
@@ -352,7 +353,6 @@ double Volume()
     return lots;
 }
 
-
 struct economicNews
 {
     MqlCalendarEvent event;
@@ -547,7 +547,8 @@ bool IsNewsEvent()
 {
     GetCalendarValue();
     int amount = MQLInfoInteger(MQL_TESTER) ? ArraySize(newsHist) : ArraySize(news);
-    if(amount==0)Print("No news downloaded.");
+    if (amount == 0)
+        Print("No news downloaded.");
     for (int i = amount - 1; i >= 0; i--)
     {
         MqlCalendarEvent event;
@@ -619,7 +620,7 @@ void MovingAverage()
     ArraySetAsSeries(maBuffer, true);
     CopyBuffer(maHandle, 0, 0, changePeriod * 2, maBuffer);
     ma_value = NormalizeDouble(maBuffer[0], Digits());
-    IsNewBar(MA_TimeFrame,barsTotalMovingAverage);
+    IsNewBar(MA_TimeFrame, barsTotalMovingAverage);
     for (int i = 0; i < changePeriod; i++)
     {
         double close = iClose(symbolName, MA_TimeFrame, i);
