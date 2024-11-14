@@ -1,4 +1,4 @@
-//+------------------------------------------------------------------+
+   //+------------------------------------------------------------------+
 //|                                                  RunawayGrid.mq5 |
 //|                                  Copyright 2023, MetaQuotes Ltd. |
 //|                                             https://www.mql5.com |
@@ -12,21 +12,23 @@ CTrade trade;
 
 // Input parameters
 input int magicNumber = 85858;                       // Magic Number
-input double riskPercent = 1.0;                      // Risk percent
+input double riskPercent = 0.1;                      // Risk percent
 input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_CURRENT; // TimeFrame
-int AtrPeriod = 999;                                 // ATR Period
+input int AtrPeriod = 20;                            // ATR Period
+input int atrForward = 1;                            // ATR Forward
 int atrFilter = 4;                                   // ATR Filter
-input ENUM_TIMEFRAMES MA_TimeFrame = PERIOD_CURRENT; // MA TimeFrame
+ENUM_TIMEFRAMES MA_TimeFrame = InpTimeFrame;         // MA TimeFrame
 ENUM_MA_METHOD MA_Method = MODE_EMA;                 // MA Method
 ENUM_APPLIED_PRICE MA_Price = PRICE_CLOSE;           // MA Price
-input int MA_Period = 20;                            // MA Period
-input int changePeriod = 5;                          // Change Period
+input int MA_Period = 10;                            // MA Period
+input int changePeriod = 1;                          // Change Period
 enum MA_DIRECTION_ENUM
 {
     MA_OFF,
-    MA_BOTH,
     MA_RANGE,
-    MA_TREND
+
+    MA_TREND,
+    MA_BOTH
 };
 input MA_DIRECTION_ENUM InpMaDirection = MA_RANGE; // Ma Direction
 
@@ -36,14 +38,20 @@ input bool takeSells = true; // Short
 input bool CommentFlag = true; // Comment
 
 input bool NewsFilter = true; // News filter
-input ENUM_TIMEFRAMES LowNewsTimeFrame = PERIOD_M5;
-input ENUM_TIMEFRAMES MediumNewsTimeFrame = PERIOD_M15;
-input ENUM_TIMEFRAMES HighNewsTimeFrame = PERIOD_H1;
+input ENUM_TIMEFRAMES LowNewsTimeFrame = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES MediumNewsTimeFrame = PERIOD_CURRENT;
+input ENUM_TIMEFRAMES HighNewsTimeFrame = PERIOD_CURRENT;
+input bool InpNewsImportanceMultiplier = true; // news importance multiplier
+input int InpNewsTimeOffset = 1;               // news offset multiplier
+input int InpStartHour = 2;                    // start hour
+input int InpStopHour = 22;                    // stop hour
+
+input bool hedgedExit = false; // hedged exit
 
 // Global variables
-double gridSize, firstUpperLevel, firstLowerLevel;
+double gridSize, firstUpperLevel, firstLowerLevel, initLot;
 MqlTick lastTick;
-int atrHandle, arraySize = 10;
+int arraySize = 10;
 double levels[10];
 bool levelBuy[10], levelSell[10];
 double exitHigh = DBL_MAX, exitLow = 0;
@@ -71,10 +79,9 @@ int OnInit()
         ExpertRemove();
     }
 
-    atrHandle = iATR(symbolName, InpTimeFrame, AtrPeriod);
     // maHandle = iMA(symbolName, InpTimeFrame, MA_Period, 0, MA_Method, MA_Price);
     //  Initialize grid size
-    gridSize = NormalizeDouble(AtrValue(), Digits());
+    gridSize = AtrValue();
 
     trade.SetExpertMagicNumber(magicNumber);
     return INIT_SUCCEEDED;
@@ -92,10 +99,12 @@ void OnTick()
     if (IsNewBar(PERIOD_M1, barsTotalNewsEvent))
         newsFlag = IsNewsEvent();
     CommentFunction();
-    if (((hour >= 22 || hour < 2) && CountPositions() == 0) || (CountPositions() == 0 && newsFlag && NewsFilter) || gridSize == 0)
+    if (CountPositions() == 0)
+        gridSize = AtrValue();
+    if ((CountPositions() == 0 && MathAbs(lastTick.ask - lastTick.bid) * 4 >= gridSize) || ((hour >= InpStopHour || hour < InpStartHour) && CountPositions() == 0) || (CountPositions() == 0 && newsFlag && NewsFilter) || gridSize == 0)
     {
         CloseAllOrders();
-        gridSize = NormalizeDouble(AtrValue(), Digits());
+        gridSize = AtrValue();
         return;
     }
     UpdateGridLevels();
@@ -109,24 +118,57 @@ void CommentFunction()
     Comment(
         "time: ", lastTick.time, "\n",
         "Last: ", lastTick.last, "\n",
-        "gridSize: ", gridSize * Point(), "\n",
+        "atr: ", (int)(AtrValue() / Point()), "\n",
+        "gridSize: ", (int)(gridSize / Point()), "\n",
         "Levels: ", levels[8], " | ", levels[1], "\n",
         "Levels: ", levels[6], " | ", levels[3], "\n",
         "Levels: ", levels[4], " | ", levels[5], "\n",
         "Levels: ", levels[2], " | ", levels[7], "\n",
         "Levels: ", levels[0], " | ", levels[9], "\n",
-        "Exit: ", exitHigh, " | ", exitLow, "\n",
+        "Exit: ", exitHigh == DBL_MAX ? 0.0 : exitHigh, " | ", exitLow, "\n",
         "MaDirection: ", lastDirection, "\n",
         "news: ", newsFlag, "\n");
 }
 
-// Function to calculate ATR based grid size
+// Function to calculate time based ATR
 double AtrValue()
 {
-    double atrArray[];
-    ArraySetAsSeries(atrArray, true);
-    CopyBuffer(atrHandle, 0, 0, 1, atrArray);
-    return NormalizeDouble(atrArray[0], Digits());
+    double highestAtr = 0.0;
+    for (int i = 0; i <= atrForward; i++)
+    {
+        double atrArray[];
+        ArrayResize(atrArray, AtrPeriod);
+        ArraySetAsSeries(atrArray, true);
+
+        // Adjust current time to be one day ago plus atrForward periods, ensuring we don't start in the future
+        datetime currentTime = TimeCurrent() - PeriodSeconds(PERIOD_D1) + (i * PeriodSeconds(InpTimeFrame));
+        // currentTime -= PeriodSeconds(PERIOD_D1) * (int)MathCeil((double)PeriodSeconds(InpTimeFrame) / PeriodSeconds(PERIOD_D1));
+
+        // Calculate the start time to be x days before the adjusted current time
+        datetime startTime = currentTime - (AtrPeriod * PeriodSeconds(PERIOD_D1));
+
+        int count = 0;
+        for (datetime time = startTime; time < currentTime; time += PeriodSeconds(PERIOD_D1)) // iterate over each day
+        {
+            int atrHandle = iATR(Symbol(), InpTimeFrame, 1); // ATR for 1 period
+            double tempArray[];
+            ArraySetAsSeries(tempArray, true);
+            CopyBuffer(atrHandle, 0, iBarShift(Symbol(), InpTimeFrame, time), 1, tempArray);
+            atrArray[count] = tempArray[0];
+            count++;
+        }
+
+        double sum = 0;
+        for (int i = 0; i < AtrPeriod; i++)
+        {
+            sum += atrArray[i];
+        }
+
+        double averageAtr = sum / AtrPeriod;
+        if (averageAtr > highestAtr)
+            highestAtr = averageAtr;
+    }
+    return NormalizeDouble(highestAtr, Digits());
 }
 
 int CountPositions()
@@ -163,17 +205,18 @@ void UpdateGridLevels()
     // draw grid levels
     for (int i = 0; i < arraySize; i++)
     {
-        DrawGridLevels("GridLevel " + (string)i, levels[i]);
+        color levelColor = levels[i] > lastTick.last ? clrGreen : clrRed;
+        DrawGridLevels("GridLevel " + (string)i, levels[i], levelColor);
     }
 }
 
-void DrawGridLevels(string name, double level)
+void DrawGridLevels(string name, double level, color levelColor)
 {
     ObjectCreate(0, name, OBJ_TREND, 0, iTime(symbolName, Period(), 5), level, TimeCurrent() + PeriodSeconds(PERIOD_D1), level);
     ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DOT);
     ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
     ObjectSetInteger(0, name, OBJPROP_BACK, true);
-    ObjectSetInteger(0, name, OBJPROP_COLOR, clrBlue);
+    ObjectSetInteger(0, name, OBJPROP_COLOR, levelColor);
     ObjectSetString(0, name, OBJPROP_TEXT, name);
 
     ChartRedraw();
@@ -188,44 +231,85 @@ void ManageTrades()
     UpdateTrades();
 }
 
+bool hedgeTaken;
 void UpdateTrades()
 {
     if (CountPositions() == 0)
+    {
+        hedgeTaken = false;
         return;
+    }
 
-    if (lastTick.last > exitHigh || lastTick.last < exitLow)
+    if (hedgedExit)
+    {
+        double hedgedHighTp = levels[8] + gridSize;
+        double hedgedLowTp = levels[9] - gridSize;
+
+        if (lastTick.last > levels[8] && !hedgeTaken)
+        {
+            hedgeTaken = true;
+            double vol = NormalizeDouble(initLot * 10, 2);
+            trade.Buy(vol, symbolName, 0, 0, hedgedHighTp, "Hedged Exit");
+        }
+
+        if (lastTick.last < levels[9] && !hedgeTaken)
+        {
+            hedgeTaken = true;
+            double vol = NormalizeDouble(initLot * 10, 2);
+            trade.Sell(vol, symbolName, 0, 0, hedgedLowTp, "Hedged Exit");
+        }
+    }
+
+    if ((lastTick.last > exitHigh || lastTick.last < exitLow) || (hedgeTaken && (lastTick.last > levels[8] + gridSize || lastTick.last < levels[9] - gridSize)))
         CloseAllPositions();
 
     if (exitHigh == DBL_MAX || exitLow == 0 || exitHigh > levels[8] || exitLow < levels[9])
     {
         exitHigh = levels[8];
         exitLow = levels[9];
+        return;
     }
 
-    if (lastTick.last > levels[6] && exitLow < levels[4])
+    if (lastTick.last < levels[8] && exitLow < levels[6] && hedgedExit)
+    {
+        exitLow = levels[6];
+        return;
+    }
+    else if (lastTick.last > levels[6] && exitLow < levels[4])
     {
         exitLow = levels[4];
+        return;
     }
     else if (lastTick.last > levels[4] && exitLow < levels[2])
     {
         exitLow = levels[2];
+        return;
     }
     else if (lastTick.last > levels[2] && exitLow < levels[0])
     {
         exitLow = levels[0];
+        return;
     }
 
-    if (lastTick.last < levels[7] && exitHigh > levels[5])
+    if (lastTick.last > levels[9] && exitHigh > levels[7] && hedgedExit)
+    {
+        exitHigh = levels[7];
+        return;
+    }
+    else if (lastTick.last < levels[7] && exitHigh > levels[5])
     {
         exitHigh = levels[5];
+        return;
     }
     else if (lastTick.last < levels[5] && exitHigh > levels[3])
     {
         exitHigh = levels[3];
+        return;
     }
     else if (lastTick.last < levels[3] && exitHigh > levels[1])
     {
         exitHigh = levels[1];
+        return;
     }
 }
 
@@ -241,7 +325,7 @@ void CloseAllPositions()
             trade.PositionClose(ticket);
         }
     }
-
+    initLot=0;
     CloseAllOrders();
 }
 
@@ -257,6 +341,7 @@ void CloseAllOrders()
             trade.OrderDelete(ticket);
         }
     }
+    initLot=0;
 }
 
 // Function to place an order
@@ -301,25 +386,31 @@ void PlaceOrders()
             }
         }
     }
-
+   
     // Place orders at all levels
     for (int i = 0; i < levelsCount; i++)
     {
         if (levelBuy[i] && takeBuys && (InpMaDirection == MA_OFF || (InpMaDirection == MA_RANGE && lastDirection == 0) || (InpMaDirection == MA_TREND && lastDirection == 1) || (InpMaDirection == MA_BOTH && lastDirection != -1)))
         {
+            
+            if(initLot == 0) initLot=Volume();
+            
             double tp = levels[i] + gridSize;
             if (levels[i] > lastTick.last)
-                trade.BuyStop(Volume(), levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+                trade.BuyStop(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
             else if (levels[i] < lastTick.last)
-                trade.BuyLimit(Volume(), levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+                trade.BuyLimit(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
         }
         if (levelSell[i] && takeSells && (InpMaDirection == MA_OFF || (InpMaDirection == MA_RANGE && lastDirection == 0) || (InpMaDirection == MA_TREND && lastDirection == -1) || (InpMaDirection == MA_BOTH && lastDirection != 1)))
         {
+            
+            if(initLot == 0) initLot=Volume();
+            
             double tp = levels[i] - gridSize;
             if (levels[i] < lastTick.last)
-                trade.SellStop(Volume(), levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+                trade.SellStop(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
             else if (levels[i] > lastTick.last)
-                trade.SellLimit(Volume(), levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+                trade.SellLimit(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
         }
     }
 }
@@ -547,8 +638,8 @@ bool IsNewsEvent()
 {
     GetCalendarValue();
     int amount = MQLInfoInteger(MQL_TESTER) ? ArraySize(newsHist) : ArraySize(news);
-    if (amount == 0)
-        Print("No news downloaded.");
+    // if (amount == 0 && NewsFilter && MQLInfoInteger(MQL_TESTER))
+    //   Print("No news downloaded.");
     for (int i = amount - 1; i >= 0; i--)
     {
         MqlCalendarEvent event;
@@ -572,15 +663,26 @@ bool IsNewsEvent()
             continue;
 
         int importanceTime = 1;
+        int importanceNewsMultiplier = 1;
 
         if (event.importance == CALENDAR_IMPORTANCE_NONE)
             continue;
         if (event.importance == CALENDAR_IMPORTANCE_LOW)
             importanceTime = PeriodSeconds(LowNewsTimeFrame);
         if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
+        {
             importanceTime = PeriodSeconds(MediumNewsTimeFrame);
+            importanceNewsMultiplier = 2;
+        }
         if (event.importance == CALENDAR_IMPORTANCE_HIGH)
+        {
             importanceTime = PeriodSeconds(HighNewsTimeFrame);
+            importanceNewsMultiplier = 3;
+        }
+        if (!InpNewsImportanceMultiplier)
+            importanceNewsMultiplier = 1;
+
+        importanceTime = importanceTime * importanceNewsMultiplier * InpNewsTimeOffset;
 
         if (value.time <= TimeCurrent() + importanceTime && value.time >= TimeCurrent() - importanceTime)
             return true;

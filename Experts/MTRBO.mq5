@@ -294,7 +294,7 @@ void MA()
       range.periodSinceLastDirectionChange++;
     }
 
-    int changePeriod = 24;
+    int changePeriod = InpMaPeriod/12;
     if (range.periodSinceLastDirectionChange >= changePeriod)
     {
       range.maDirection = newMaDirection;
