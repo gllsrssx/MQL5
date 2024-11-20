@@ -49,13 +49,13 @@ input ENUM_RISK_TYPE InpRiskType = RISK_TYPE_BALANCE;
 input double InpRiskValueAmount = 1.0; // risk value amount
 input double InpRiskRewardRatio = 1.0; // risk reward ratio
 input int InpAtrPeriods = 14; // ATR period to determine range
+input int InpAtrFilter = 0; // atr filter (0=off)
 input ENUM_TIMEFRAMES InpAtrTimeframe = PERIOD_CURRENT; // ATR timeframe
 input int InpMagic = 8; // magic number
 input int InpStartTradingHour = 0; // start trading hour server time (0=off)
 input int InpStopTradingHour = 0; // stop trading hour server time (0=off)
 input int InpMaxSpread = 0; // max spread allowed (0=off)
-
-
+input bool InpSwitch = true;
 
 int OnInit()
 {
@@ -183,8 +183,9 @@ void OnTick()
         trade.SetExpertMagicNumber(InpMagic);
 
         string sym = symbol.symbol;
-        double atr = iATR(sym, InpAtrTimeframe, InpAtrPeriods);
-        double sl = atr;
+        double atr[];
+        CopyBuffer(symbol.handleAtr, MAIN_LINE, 0,InpAtrFilter+1, atr);
+        double sl = atr[0];
         double tp = sl * InpRiskRewardRatio;
         double lot = Volume(sym, sl);
 
@@ -203,7 +204,8 @@ void OnTick()
          }
          double lastPrice = symbol.lastPrice;
 
-        if (((InpMaxSpread > 0 && SymbolInfoInteger(sym, SYMBOL_SPREAD) > InpMaxSpread) || (InpStartTradingHour > 0 && dt.hour < InpStartTradingHour) || (InpStopTradingHour > 0 && dt.hour > InpStopTradingHour)) && positionCount==0) {
+        if (((atr[0] <= atr[InpAtrFilter-1] && InpAtrFilter > 0) || (InpMaxSpread > 0 && SymbolInfoInteger(sym, SYMBOL_SPREAD) > InpMaxSpread) || (InpStartTradingHour > 0 && dt.hour < InpStartTradingHour) || (InpStopTradingHour > 0 && dt.hour > InpStopTradingHour)) && positionCount==0) {
+         //Comment("no trading allowed due to spread or server time.");
          symbol.lastPrice = 0;
          continue;
         }
@@ -212,19 +214,23 @@ void OnTick()
          {
                if (ask > lastPrice && lastPrice > 0)
                 {
-                     trade.Buy(lot, sym, ask, ask-sl, ask+tp);
+                      if(InpSwitch) trade.Sell(lot, sym, bid, bid+sl, bid-tp);
+                     else trade.Buy(lot, sym, ask, ask-sl, ask+tp);
                 }
                 else if (bid < lastPrice && lastPrice > 0)
                 {
-                     trade.Sell(lot, sym, bid, bid+sl, bid-tp);
+                     if(InpSwitch) trade.Buy(lot, sym, ask, ask-sl, ask+tp);
+                     else trade.Sell(lot, sym, bid, bid+sl, bid-tp);
                 }
                else if (ask > iOpen(sym, InpAtrTimeframe, 0))
                {
-                     trade.Buy(lot, sym, ask, ask-sl, ask+tp);
+                     if(InpSwitch) trade.Sell(lot, sym, bid, bid+sl, bid-tp);
+                     else trade.Buy(lot, sym, ask, ask-sl, ask+tp);
                }
                else if (bid < iOpen(sym, InpAtrTimeframe, 0))
                {
-                     trade.Sell(lot, sym, bid, bid+sl, bid-tp);
+                     if(InpSwitch) trade.Buy(lot, sym, ask, ask-sl, ask+tp);
+                     else trade.Sell(lot, sym, bid, bid+sl, bid-tp);
                }
          }
     }
