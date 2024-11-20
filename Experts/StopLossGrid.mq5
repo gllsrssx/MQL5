@@ -62,7 +62,7 @@ input bool Martingale = false;
 
 CArrayObj symbols;
 //int barsTotal;
-double arrMartin[] = {1,1,2,4,8,17,33,67,133,267,533,1067,2133};
+double arrMartin[] = {1,1,2.5,5,10,20,40,80,160,320,0};
 int maxRetrace=0;
 
 int OnInit()
