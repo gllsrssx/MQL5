@@ -1,768 +1,351 @@
-#property copyright "Copyright 2023, MetaQuotes Ltd."
+#property copyright "Copyright 2024, MetaQuotes Ltd."
 #property link "https://www.mql5.com"
 #property version "1.00"
 
-#include <Trade\Trade.mqh>
-CTrade trade;
+#include <Trade/Trade.mqh>
+#include <Arrays/ArrayLong.mqh>
+#include <Arrays/ArrayObj.mqh>
 
-// Input parameters
-input int magicNumber = 85858;                       // Magic Number
-input double riskPercent = 0.1;                      // Risk percent
-input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_CURRENT; // TimeFrame
-input int AtrPeriod = 20;                            // ATR Period
-int atrFilter = 4;                                   // ATR Filter
-ENUM_TIMEFRAMES MA_TimeFrame = InpTimeFrame;         // MA TimeFrame
-ENUM_MA_METHOD MA_Method = MODE_EMA;                 // MA Method
-ENUM_APPLIED_PRICE MA_Price = PRICE_CLOSE;           // MA Price
-input int MA_Period = 10;                            // MA Period
-input int changePeriod = 1;                          // Change Period
-enum MA_DIRECTION_ENUM
+class CSymbol : public CObject
 {
-  MA_OFF,   // OFF
-  MA_RANGE, // RANGE
+public:
+   CSymbol(string name) : symbol(name) {};
+   ~CSymbol() {};
 
-  MA_TREND, // TREND
-  MA_BOTH   // BOTH
+   string symbol;
+   CArrayLong tickets;
+   int handleAtr;
+   double distance;
+   double level;
+   int direction;
+   int retrace;
+   double lots;
 };
-input MA_DIRECTION_ENUM InpMaDirection = MA_RANGE; // Ma Direction
 
-input bool takeBuys = true;  // Long
-input bool takeSells = true; // Short
+enum ENUM_SYMBOLS
+{
+   SYMBOLS_ALL,
+   SYMBOLS_MAJOR,
+   SYMBOLS_EURUSD,
+   SYMBOLS_AUDUSD,
+   SYMBOLS_GBPUSD,
+   SYMBOLS_USDCAD,
+   SYMBOLS_USDCHF,
+   SYMBOLS_USDJPY,
+   SYMBOLS_MINOR,
+};
+input ENUM_SYMBOLS SymbolsInput = SYMBOLS_ALL;
+enum ENUM_RISK_VALUE
+{
+   RISK_VALUE_LOT,
+   RISK_VALUE_PERCENT
+};
+input ENUM_RISK_VALUE RiskValue = RISK_VALUE_PERCENT;
+enum ENUM_RISK_TYPE
+{
+   RISK_TYPE_BALANCE,
+   RISK_TYPE_EQUITY,
+   RISK_TYPE_STATIC
+};
+input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE;
+input double RiskValueAmount = 1.0;
 
-input bool CommentFlag = true; // Comment
+input ENUM_TIMEFRAMES AtrTimeframe = PERIOD_M15;
+input int AtrPeriods = 14;
+input int AtrDeclinePeriod = 4;
 
-input bool NewsFilter = true; // News filter
-input ENUM_TIMEFRAMES LowNewsTimeFrame = PERIOD_CURRENT;
-input ENUM_TIMEFRAMES MediumNewsTimeFrame = PERIOD_CURRENT;
-input ENUM_TIMEFRAMES HighNewsTimeFrame = PERIOD_CURRENT;
-input bool InpNewsImportanceMultiplier = true; // news importance multiplier
-input int InpNewsTimeOffset = 1;               // news offset multiplier
-input int InpStartHour = 2;                    // start hour
-input int InpStopHour = 22;                    // stop hour
+input int Magic = 8;
+input int StartTradingHour = 2;
+input int StopTradingHour = 20;
+input int maxSpread = 20;
+input bool Martingale = false;
 
-input bool hedgedExit = false; // hedged exit
-
-// Global variables
-double gridSize, firstUpperLevel, firstLowerLevel, initLot;
-MqlTick lastTick;
-const int arraySize = 10;
-double levels[arraySize];
-bool levelBuy[arraySize], levelSell[arraySize];
-double exitHigh = DBL_MAX, exitLow = 0;
-MqlCalendarValue news[];
-string symbolName = Symbol();
-int barsTotalNewsEvent;
-bool newsFlag, hedgeTaken;
+CArrayObj symbols;
+//int barsTotal;
+double arrMartin[] = {1,1,2,4,8,17,33,67,133,267,533,1067,2133};
+int maxRetrace=0;
 
 int OnInit()
 {
-  if (TimeCurrent() > StringToTime("2025.01.01 00:00:00") && !MQLInfoInteger(MQL_TESTER))
-  {
-    Print("INFO: This is a demo version of the EA. It will only work until January 1, 2025. Please contact dev: glls@rssx.be");
-    ExpertRemove();
-  }
+   string arrSymbols[];
+   if (SymbolsInput == SYMBOLS_MAJOR)
+   {
+      ArrayResize(arrSymbols, 6);
+      arrSymbols[0] = "EURUSD";
+      arrSymbols[1] = "USDJPY";
+      arrSymbols[2] = "GBPUSD";
+      arrSymbols[3] = "AUDUSD";
+      arrSymbols[4] = "USDCAD";
+      arrSymbols[5] = "USDCHF";
+   }
+   else if (SymbolsInput == SYMBOLS_MINOR)
+   {
+      ArrayResize(arrSymbols, 20);
+      arrSymbols[0] = "AUDCHF";
+      arrSymbols[1] = "AUDJPY";
+      arrSymbols[2] = "AUDNZD";
+      arrSymbols[3] = "CADCHF";
+      arrSymbols[4] = "CADJPY";
+      arrSymbols[5] = "CHFJPY";
+      arrSymbols[6] = "EURAUD";
+      arrSymbols[7] = "EURCAD";
+      arrSymbols[8] = "EURCHF";
+      arrSymbols[9] = "EURGBP";
+      arrSymbols[10] = "AUDCAD";
+      arrSymbols[11] = "EURJPY";
+      arrSymbols[12] = "USDSGD";
+      arrSymbols[13] = "EURNZD";
+      arrSymbols[14] = "GBPAUD";
+      arrSymbols[15] = "GBPCAD";
+      arrSymbols[16] = "GBPCHF";
+      arrSymbols[17] = "GBPJPY";
+      arrSymbols[18] = "GBPNZD";
+      arrSymbols[19] = "NZDCAD";
+   }
+   else if (SymbolsInput == SYMBOLS_ALL)
+   {
+      ArrayResize(arrSymbols, 26);
+      arrSymbols[0] = "EURUSD";
+      arrSymbols[1] = "USDJPY";
+      arrSymbols[2] = "GBPUSD";
+      arrSymbols[3] = "AUDUSD";
+      arrSymbols[4] = "USDCAD";
+      arrSymbols[5] = "USDCHF";
+      arrSymbols[6] = "AUDCHF";
+      arrSymbols[7] = "AUDJPY";
+      arrSymbols[8] = "AUDNZD";
+      arrSymbols[9] = "CADCHF";
+      arrSymbols[10] = "CADJPY";
+      arrSymbols[11] = "CHFJPY";
+      arrSymbols[12] = "EURAUD";
+      arrSymbols[13] = "EURCAD";
+      arrSymbols[14] = "EURCHF";
+      arrSymbols[15] = "EURGBP";
+      arrSymbols[16] = "AUDCAD";
+      arrSymbols[17] = "EURJPY";
+      arrSymbols[18] = "USDSGD";
+      arrSymbols[19] = "EURNZD";
+      arrSymbols[20] = "GBPAUD";
+      arrSymbols[21] = "GBPCAD";
+      arrSymbols[22] = "GBPCHF";
+      arrSymbols[23] = "GBPJPY";
+      arrSymbols[24] = "GBPNZD";
+      arrSymbols[25] = "NZDCAD";
+   }
+   else if (SymbolsInput == SYMBOLS_EURUSD)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "EURUSD";
+   }
+   else if (SymbolsInput == SYMBOLS_USDJPY)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "USDJPY";
+   }
+   else if (SymbolsInput == SYMBOLS_GBPUSD)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "GBPUSD";
+   }
+   else if (SymbolsInput == SYMBOLS_AUDUSD)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "AUDUSD";
+   }
+   else if (SymbolsInput == SYMBOLS_USDCAD)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "USDCAD";
+   }
+   else if (SymbolsInput == SYMBOLS_USDCHF)
+   {
+      ArrayResize(arrSymbols, 1);
+      arrSymbols[0] = "USDCHF";
+   }
 
-  if (MQLInfoInteger(MQL_TESTER))
-  {
-    Print("INFO: Please run the EA in real mode first to download the history.");
-  }
-  else
-  {
-    downloadNews();
-  }
+   symbols.Clear();
+   for (int i = ArraySize(arrSymbols) - 1; i >= 0; i--)
+   {
+      CSymbol *symbol = new CSymbol(arrSymbols[i]);
+      symbol.handleAtr = iATR(symbol.symbol, AtrTimeframe, AtrPeriods);
+      symbols.Add(symbol);
+   }
 
-  if (MA_Period == 0 && InpMaDirection != MA_OFF)
-  {
-    Print("MA VALUE TOO LOW, DISABLE MA OR SET VALUE > 0!");
-    ExpertRemove();
-  }
+   return (INIT_SUCCEEDED);
+}
 
-  gridSize = AtrValue();
-  trade.SetExpertMagicNumber(magicNumber);
-  return INIT_SUCCEEDED;
+void OnDeinit(const int reason)
+{
 }
 
 void OnTick()
 {
-  MqlDateTime mdt;
-  TimeCurrent(mdt);
-  int hour = mdt.hour;
-  MovingAverage();
-  SymbolInfoTick(symbolName, lastTick);
-  lastTick.last = iClose(symbolName, PERIOD_CURRENT, 0);
+   MqlDateTime dt;
+   TimeCurrent(dt);
 
-  if (IsNewBar(PERIOD_M1, barsTotalNewsEvent))
-  {
-    newsFlag = IsNewsEvent();
-  }
+   // int bars = iBars(_Symbol, AtrTimeframe);
+   // if (barsTotal != bars)
+   // {
+   //    barsTotal = bars;
 
-  CommentFunction();
+   for (int j = symbols.Total() - 1; j >= 0; j--)
+   {
+      CSymbol *symbol = symbols.At(j);
 
-  if (CountPositions() == 0)
-  {
-    gridSize = AtrValue();
-  }
+      CTrade trade;
+      trade.SetExpertMagicNumber(Magic);
 
-  if (ShouldCloseAllOrders(hour))
-  {
-    CloseAllOrders();
-    gridSize = AtrValue();
-    return;
-  }
+      int posC = PositionsCount(symbol.symbol);
+      double last = (SymbolInfoDouble(symbol.symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol.symbol, SYMBOL_BID)) / 2;
 
-  UpdateGridLevels();
-  ManageTrades();
-}
-
-void CommentFunction()
-{
-  if (!CommentFlag)
-    return;
-
-  Comment(
-      "time: ", lastTick.time, "\n",
-      "Last: ", lastTick.last, "\n",
-      "atr: ", (int)(AtrValue() / Point()), "\n",
-      "gridSize: ", (int)(gridSize / Point()), "\n",
-      "Levels: ", levels[8], " | ", levels[1], "\n",
-      "Levels: ", levels[6], " | ", levels[3], "\n",
-      "Levels: ", levels[4], " | ", levels[5], "\n",
-      "Levels: ", levels[2], " | ", levels[7], "\n",
-      "Levels: ", levels[0], " | ", levels[9], "\n",
-      "Exit: ", exitHigh == DBL_MAX ? 0.0 : exitHigh, " | ", exitLow, "\n",
-      "MaDirection: ", lastDirection, "\n",
-      "news: ", newsFlag, "\n");
-}
-
-double AtrValue()
-{
-  double highestAtr = 0.0;
-  for (int i = 0; i <= atrForward; i++)
-  {
-    double atrArray[AtrPeriod];
-    ArraySetAsSeries(atrArray, true);
-
-    datetime currentTime = TimeCurrent() - PeriodSeconds(PERIOD_D1) + (i * PeriodSeconds(InpTimeFrame));
-    datetime startTime = currentTime - (AtrPeriod * PeriodSeconds(PERIOD_D1));
-
-    int count = 0;
-    for (datetime time = startTime; time < currentTime; time += PeriodSeconds(PERIOD_D1))
-    {
-      int atrHandle = iATR(Symbol(), InpTimeFrame, 1);
-      double tempArray[];
-      ArraySetAsSeries(tempArray, true);
-      CopyBuffer(atrHandle, 0, iBarShift(Symbol(), InpTimeFrame, time), 1, tempArray);
-      atrArray[count] = tempArray[0];
-      count++;
-    }
-
-    double sum = 0;
-    for (int j = 0; j < AtrPeriod; j++)
-    {
-      sum += atrArray[j];
-    }
-
-    double averageAtr = sum / AtrPeriod;
-    if (averageAtr > highestAtr)
-      highestAtr = averageAtr;
-  }
-  return NormalizeDouble(highestAtr, Digits());
-}
-
-int CountPositions()
-{
-  int count = 0;
-  for (int i = PositionsTotal() - 1; i >= 0; i--)
-  {
-    ulong ticket = PositionGetTicket(i);
-    if (ticket > 0 && PositionGetInteger(POSITION_MAGIC) == magicNumber && PositionGetString(POSITION_SYMBOL) == symbolName)
-    {
-      count++;
-    }
-  }
-  return count;
-}
-
-void UpdateGridLevels()
-{
-  if (CountPositions() > 0)
-    return;
-
-  firstUpperLevel = NormalizeDouble(MathCeil(lastTick.last / gridSize) * gridSize, Digits());
-
-  int count = 0;
-  for (int i = 0; i < arraySize; i += 2)
-  {
-    levels[i] = NormalizeDouble(firstUpperLevel + count * gridSize, Digits());
-    levels[i + 1] = NormalizeDouble(firstUpperLevel - (count + 1) * gridSize, Digits());
-    count++;
-  }
-
-  for (int i = 0; i < arraySize; i++)
-  {
-    color levelColor = levels[i] > lastTick.last ? clrGreen : clrRed;
-    DrawGridLevels("GridLevel " + (string)i, levels[i], levelColor);
-  }
-}
-
-void DrawGridLevels(string name, double level, color levelColor)
-{
-  ObjectCreate(0, name, OBJ_TREND, 0, iTime(symbolName, Period(), 5), level, TimeCurrent() + PeriodSeconds(PERIOD_D1), level);
-  ObjectSetInteger(0, name, OBJPROP_STYLE, STYLE_DOT);
-  ObjectSetInteger(0, name, OBJPROP_WIDTH, 2);
-  ObjectSetInteger(0, name, OBJPROP_BACK, true);
-  ObjectSetInteger(0, name, OBJPROP_COLOR, levelColor);
-  ObjectSetString(0, name, OBJPROP_TEXT, name);
-
-  ChartRedraw();
-}
-
-void ManageTrades()
-{
-  if (CountPositions() == 0)
-  {
-    PlaceOrders();
-  }
-  UpdateTrades();
-}
-
-void UpdateTrades()
-{
-  if (CountPositions() == 0)
-  {
-    hedgeTaken = false;
-    return;
-  }
-
-  if (hedgedExit)
-  {
-    double hedgedHighTp = levels[8] + gridSize;
-    double hedgedLowTp = levels[9] - gridSize;
-
-    if (lastTick.last > levels[8] && !hedgeTaken)
-    {
-      hedgeTaken = true;
-      double vol = NormalizeDouble(initLot * 10, 2);
-      trade.Buy(vol, symbolName, 0, 0, hedgedHighTp, "Hedged Exit");
-    }
-
-    if (lastTick.last < levels[9] && !hedgeTaken)
-    {
-      hedgeTaken = true;
-      double vol = NormalizeDouble(initLot * 10, 2);
-      trade.Sell(vol, symbolName, 0, 0, hedgedLowTp, "Hedged Exit");
-    }
-  }
-
-  if ((lastTick.last > exitHigh || lastTick.last < exitLow) || (hedgeTaken && (lastTick.last > levels[8] + gridSize || lastTick.last < levels[9] - gridSize)))
-  {
-    CloseAllPositions();
-  }
-
-  UpdateExitLevels();
-}
-
-void UpdateExitLevels()
-{
-  if (exitHigh == DBL_MAX || exitLow == 0 || exitHigh > levels[8] || exitLow < levels[9])
-  {
-    exitHigh = levels[8];
-    exitLow = levels[9];
-    return;
-  }
-
-  if (lastTick.last < levels[8] && exitLow < levels[6] && hedgedExit)
-  {
-    exitLow = levels[6];
-    return;
-  }
-  else if (lastTick.last > levels[6] && exitLow < levels[4])
-  {
-    exitLow = levels[4];
-    return;
-  }
-  else if (lastTick.last > levels[4] && exitLow < levels[2])
-  {
-    exitLow = levels[2];
-    return;
-  }
-  else if (lastTick.last > levels[2] && exitLow < levels[0])
-  {
-    exitLow = levels[0];
-    return;
-  }
-
-  if (lastTick.last > levels[9] && exitHigh > levels[7] && hedgedExit)
-  {
-    exitHigh = levels[7];
-    return;
-  }
-  else if (lastTick.last < levels[7] && exitHigh > levels[5])
-  {
-    exitHigh = levels[5];
-    return;
-  }
-  else if (lastTick.last < levels[5] && exitHigh > levels[3])
-  {
-    exitHigh = levels[3];
-    return;
-  }
-  else if (lastTick.last < levels[3] && exitHigh > levels[1])
-  {
-    exitHigh = levels[1];
-    return;
-  }
-}
-
-void CloseAllPositions()
-{
-  for (int i = PositionsTotal() - 1; i >= 0; i--)
-  {
-    ulong ticket = PositionGetTicket(i);
-    if (ticket > 0 && PositionGetInteger(POSITION_MAGIC) == magicNumber && PositionGetString(POSITION_SYMBOL) == symbolName)
-    {
-      trade.PositionClose(ticket);
-    }
-  }
-  initLot = 0;
-  CloseAllOrders();
-}
-
-void CloseAllOrders()
-{
-  for (int i = OrdersTotal() - 1; i >= 0; i--)
-  {
-    ulong ticket = OrderGetTicket(i);
-    if (ticket > 0 && OrderGetInteger(ORDER_MAGIC) == magicNumber && OrderGetString(ORDER_SYMBOL) == symbolName)
-    {
-      trade.OrderDelete(ticket);
-    }
-  }
-  initLot = 0;
-}
-
-void PlaceOrders()
-{
-  if (CountPositions() > 0)
-    return;
-
-  exitLow = 0;
-  exitHigh = DBL_MAX;
-
-  for (int i = 0; i < arraySize; i++)
-  {
-    levelBuy[i] = true;
-    levelSell[i] = true;
-  }
-
-  CheckExistingOrders();
-
-  for (int i = 0; i < arraySize; i++)
-  {
-    if (levelBuy[i] && takeBuys && IsValidBuyCondition())
-    {
-      if (initLot == 0)
-        initLot = Volume();
-      double tp = levels[i] + gridSize;
-      if (levels[i] > lastTick.last)
+      for (int i = symbol.tickets.Total() - 1; i >= 0; i--)
       {
-        trade.BuyStop(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+         if(posC==0)break;
+         double levelAbove = symbol.level + symbol.distance;
+         double levelBelow = symbol.level - symbol.distance;
+
+         bool gridSignal = ((symbol.direction == 1 && last >= levelAbove) ||
+                            (symbol.direction == -1 && last <= levelBelow) ||
+                            (symbol.direction == 0 && last >= levelAbove) ||
+                            (symbol.direction == 0 && last <= levelBelow));
+         if (gridSignal)
+         {
+            symbol.direction = symbol.direction == 0 && last >= levelAbove ? 1 : 
+                               symbol.direction == 0 && last <= levelBelow ? -1 : 
+                               symbol.direction;
+            symbol.level = last;
+            double lots = symbol.lots;
+            double adjustedLots = lots * arrMartin[symbol.retrace];
+            double lotStep = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_STEP);
+            double minVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MIN);
+            double maxVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MAX);
+            
+            adjustedLots = MathRound(adjustedLots / lotStep) * lotStep;
+            if (adjustedLots < minVol)
+               adjustedLots = minVol;
+            else if (adjustedLots > maxVol)
+               adjustedLots = maxVol;
+
+            trade.Sell(Martingale && symbol.direction == 1 ? adjustedLots: lots, symbol.symbol, 0, 0, symbol.level - symbol.distance);
+            if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
+            {
+               Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
+               symbol.tickets.Add(trade.ResultOrder());
+            }
+            trade.Buy(Martingale && symbol.direction == -1 ? adjustedLots: lots, symbol.symbol, 0, 0, symbol.level + symbol.distance); 
+            if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
+            {
+               Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
+               symbol.tickets.Add(trade.ResultOrder());
+            }
+            if(Martingale)Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
+
+            for (int k = symbol.tickets.Total() - 1; k >= 0; k--)
+            {
+               CPositionInfo pos;
+               if (pos.SelectByTicket(symbol.tickets.At(k)))
+               {
+                     int digits = (int)SymbolInfoInteger(symbol.symbol,SYMBOL_DIGITS);
+                     if (pos.PositionType() == POSITION_TYPE_BUY)
+                     {
+                        double takeProfit = NormalizeDouble(symbol.level + symbol.distance,digits);
+                        double stopLoss = NormalizeDouble(symbol.direction == 1? symbol.level - symbol.distance: 0,digits);
+                        
+                        if(pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)continue;
+                        trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
+                     }
+                     else if (pos.PositionType() == POSITION_TYPE_SELL)
+                     {
+                     
+                        double takeProfit = NormalizeDouble(symbol.level - symbol.distance,digits);
+                        double stopLoss = NormalizeDouble(symbol.direction == -1? symbol.level + symbol.distance: 0,digits);
+                        if(pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)continue;
+                        trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
+                     }
+               }
+            }
+            symbol.retrace++;if(symbol.retrace>maxRetrace)maxRetrace=symbol.retrace;
+         }
       }
-      else if (levels[i] < lastTick.last)
+      
+      double atr[];
+      CopyBuffer(symbol.handleAtr, MAIN_LINE, 1, AtrDeclinePeriod+1, atr);
+      bool isAtrSignal = true;
+      for (int i = 0; i < AtrDeclinePeriod; i++)
       {
-        trade.BuyLimit(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+         if (atr[i] <= atr[i + 1])
+         {
+            isAtrSignal = false;
+            break;
+         }
       }
-    }
-    if (levelSell[i] && takeSells && IsValidSellCondition())
-    {
-      if (initLot == 0)
-        initLot = Volume();
-      double tp = levels[i] - gridSize;
-      if (levels[i] < lastTick.last)
+      
+      if (posC == 0 && isAtrSignal && (StartTradingHour==0||dt.hour > StartTradingHour) && (StopTradingHour==0|| dt.hour < StopTradingHour) && maxSpread > SymbolInfoInteger(symbol.symbol, SYMBOL_SPREAD))
       {
-        trade.SellStop(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+         symbol.distance = atr[0];
+         symbol.level = last;
+         symbol.direction = 0;
+         symbol.retrace = 0;
+         symbol.lots = Volume(symbol.symbol, symbol.distance);
+         
+         Print(__FUNCTION__, " > First signal for ", symbol.symbol, "...");
+         trade.Sell(symbol.lots, symbol.symbol, 0, 0, last - atr[0]);
+         if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
+         {
+            Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
+            symbol.tickets.Add(trade.ResultOrder());
+         }
+         trade.Buy(symbol.lots, symbol.symbol, 0, 0, last + atr[0]);
+         if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
+         {
+            Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
+            symbol.tickets.Add(trade.ResultOrder());
+         }
       }
-      else if (levels[i] > lastTick.last)
+   }
+}
+
+int PositionsCount(string sym){
+   int count=0;
+   for (int i = PositionsTotal() - 1; i >= 0; i--)
+   {
+      ulong ticket = PositionGetTicket(i);
+      if (PositionSelectByTicket(ticket) && PositionGetString(POSITION_SYMBOL) == sym && PositionGetInteger(POSITION_MAGIC) == Magic)
       {
-        trade.SellLimit(initLot, levels[i], symbolName, 0, tp, 0, 0, "Level " + (string)i);
+         count++;
       }
-    }
-  }
+   }
+   return count;
 }
 
-void CheckExistingOrders()
+double capital = AccountInfoDouble(ACCOUNT_BALANCE);
+double Volume(string symbolName, double distance)
 {
-  for (int i = OrdersTotal() - 1; i >= 0; i--)
-  {
-    ulong ticket = OrderGetTicket(i);
-    if (ticket > 0 && OrderGetInteger(ORDER_MAGIC) == magicNumber && OrderGetString(ORDER_SYMBOL) == symbolName)
-    {
-      double orderPrice = OrderGetDouble(ORDER_PRICE_OPEN);
-      long orderType = OrderGetInteger(ORDER_TYPE);
+   if (RiskValue == RISK_VALUE_LOT)
+      return RiskValueAmount;
 
-      for (int j = 0; j < arraySize; j++)
-      {
-        if (orderPrice == levels[j])
-        {
-          if (orderType == ORDER_TYPE_BUY || orderType == ORDER_TYPE_BUY_STOP || orderType == ORDER_TYPE_BUY_LIMIT)
-          {
-            levelBuy[j] = false;
-          }
-          else if (orderType == ORDER_TYPE_SELL || orderType == ORDER_TYPE_SELL_STOP || orderType == ORDER_TYPE_SELL_LIMIT)
-          {
-            levelSell[j] = false;
-          }
-        }
-      }
-    }
-  }
-}
+   if (RiskType == RISK_TYPE_BALANCE)
+      capital = AccountInfoDouble(ACCOUNT_BALANCE);
+   else if (RiskType == RISK_TYPE_EQUITY)
+      capital = AccountInfoDouble(ACCOUNT_EQUITY);
 
-bool ShouldCloseAllOrders(int hour)
-{
-  return (CountPositions() == 0 && MathAbs(lastTick.ask - lastTick.bid) * 4 >= gridSize) ||
-         ((hour >= InpStopHour || hour < InpStartHour) && CountPositions() == 0) ||
-         (CountPositions() == 0 && newsFlag && NewsFilter) || gridSize == 0;
-}
+   double tickSize = SymbolInfoDouble(symbolName, SYMBOL_TRADE_TICK_SIZE);
+   double tickValue = SymbolInfoDouble(symbolName, SYMBOL_TRADE_TICK_VALUE);
+   double lotStep = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_STEP);
 
-bool IsValidBuyCondition()
-{
-  return InpMaDirection == MA_OFF || (InpMaDirection == MA_RANGE && lastDirection == 0) ||
-         (InpMaDirection == MA_TREND && lastDirection == 1) || (InpMaDirection == MA_BOTH && lastDirection != -1);
-}
+   double riskMoney = capital * RiskValueAmount / 100;
+   double moneyLotStep = distance / tickSize * tickValue * lotStep;
 
-bool IsValidSellCondition()
-{
-  return InpMaDirection == MA_OFF || (InpMaDirection == MA_RANGE && lastDirection == 0) ||
-         (InpMaDirection == MA_TREND && lastDirection == -1) || (InpMaDirection == MA_BOTH && lastDirection != 1);
-}
+   double lots = MathFloor(riskMoney / moneyLotStep) * lotStep;
 
-double Volume()
-{
+   double minVol = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_MIN);
+   double maxVol = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_MAX);
 
-  double tickSize = SymbolInfoDouble(symbolName, SYMBOL_TRADE_TICK_SIZE);
-  double tickValue = SymbolInfoDouble(symbolName, SYMBOL_TRADE_TICK_VALUE);
-  double lotStep = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_STEP);
+   if (lots < minVol)
+      return minVol;
 
-  double riskMoney = AccountInfoDouble(ACCOUNT_BALANCE) * riskPercent / 100;
-  double moneyLotStep = gridSize / tickSize * tickValue * lotStep;
+   else if (lots > maxVol)
+      return maxVol;
 
-  double lots = MathFloor(riskMoney / moneyLotStep) * lotStep;
-
-  double minVol = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_MIN);
-  double maxVol = SymbolInfoDouble(symbolName, SYMBOL_VOLUME_MAX);
-
-  if (lots < minVol)
-  {
-    lots = minVol;
-    Print(lots, " Adjusted to minimum volume ", minVol);
-  }
-  else if (lots > maxVol)
-  {
-    lots = maxVol;
-    Print(lots, " Adjusted to maximum volume ", maxVol);
-  }
-
-  return lots;
-}
-
-struct economicNews
-{
-  MqlCalendarEvent event;
-  MqlCalendarValue value;
-  MqlCalendarCountry country;
-};
-economicNews newsHist[];
-void createEconomicNews(MqlCalendarEvent &event, MqlCalendarValue &value, MqlCalendarCountry &country, economicNews &newsBT)
-{
-
-  newsBT.value = value;
-  newsBT.event = event;
-  newsBT.country = country;
-}
-
-string newsToString(economicNews &newsBT)
-{
-
-  string strNews = "";
-  strNews += ((string)newsBT.event.id + ";");
-  strNews += ((string)newsBT.event.type + ";");
-  strNews += ((string)newsBT.event.sector + ";");
-  strNews += ((string)newsBT.event.frequency + ";");
-  strNews += ((string)newsBT.event.time_mode + ";");
-  strNews += ((string)newsBT.event.country_id + ";");
-  strNews += ((string)newsBT.event.unit + ";");
-  strNews += ((string)newsBT.event.importance + ";");
-  strNews += ((string)newsBT.event.multiplier + ";");
-  strNews += ((string)newsBT.event.digits + ";");
-  strNews += (newsBT.event.source_url + ";");
-  strNews += (newsBT.event.event_code + ";");
-  strNews += (newsBT.event.name + ";");
-  strNews += ((string)newsBT.value.id + ";");
-  strNews += ((string)newsBT.value.event_id + ";");
-  strNews += ((string)(long)newsBT.value.time + ";");
-  strNews += ((string)(long)newsBT.value.period + ";");
-  strNews += ((string)newsBT.value.revision + ";");
-  strNews += ((string)newsBT.value.actual_value + ";");
-  strNews += ((string)newsBT.value.prev_value + ";");
-  strNews += ((string)newsBT.value.revised_prev_value + ";");
-  strNews += ((string)newsBT.value.forecast_value + ";");
-  strNews += ((string)newsBT.value.impact_type + ";");
-  strNews += ((string)newsBT.country.id + ";");
-  strNews += ((string)newsBT.country.name + ";");
-  strNews += ((string)newsBT.country.code + ";");
-  strNews += ((string)newsBT.country.currency + ";");
-  strNews += ((string)newsBT.country.currency_symbol + ";");
-  strNews += ((string)newsBT.country.url_name);
-
-  return strNews;
-}
-
-bool stringToNews(string newsStr, economicNews &newsBT)
-{
-
-  string tokens[];
-
-  if (StringSplit(newsStr, ';', tokens) == 29)
-  {
-
-    newsBT.event.id = (ulong)tokens[0];
-    newsBT.event.type = (ENUM_CALENDAR_EVENT_TYPE)tokens[1];
-    newsBT.event.sector = (ENUM_CALENDAR_EVENT_SECTOR)tokens[2];
-    newsBT.event.frequency = (ENUM_CALENDAR_EVENT_FREQUENCY)tokens[3];
-    newsBT.event.time_mode = (ENUM_CALENDAR_EVENT_TIMEMODE)tokens[4];
-    newsBT.event.country_id = (ulong)tokens[5];
-    newsBT.event.unit = (ENUM_CALENDAR_EVENT_UNIT)tokens[6];
-    newsBT.event.importance = (ENUM_CALENDAR_EVENT_IMPORTANCE)tokens[7];
-    newsBT.event.multiplier = (ENUM_CALENDAR_EVENT_MULTIPLIER)tokens[8];
-    newsBT.event.digits = (uint)tokens[9];
-    newsBT.event.source_url = tokens[10];
-    newsBT.event.event_code = tokens[11];
-    newsBT.event.name = tokens[12];
-    newsBT.value.id = (ulong)tokens[13];
-    newsBT.value.event_id = (ulong)tokens[14];
-    newsBT.value.time = (datetime)(long)tokens[15];
-    newsBT.value.period = (datetime)(long)tokens[16];
-    newsBT.value.revision = (int)tokens[17];
-    newsBT.value.actual_value = (long)tokens[18];
-    newsBT.value.prev_value = (long)tokens[19];
-    newsBT.value.revised_prev_value = (long)tokens[20];
-    newsBT.value.forecast_value = (long)tokens[21];
-    newsBT.value.impact_type = (ENUM_CALENDAR_EVENT_IMPACT)tokens[22];
-    newsBT.country.id = (ulong)tokens[23];
-    newsBT.country.name = tokens[24];
-    newsBT.country.code = tokens[25];
-    newsBT.country.currency = tokens[26];
-    newsBT.country.currency_symbol = tokens[27];
-    newsBT.country.url_name = tokens[28];
-
-    return true;
-  }
-
-  return false;
-}
-
-void downloadNews()
-{
-
-  int fileHandle = FileOpen("news" + ".csv", FILE_WRITE | FILE_COMMON);
-
-  if (fileHandle != INVALID_HANDLE)
-  {
-
-    MqlCalendarValue values[];
-
-    if (CalendarValueHistory(values, StringToTime("01.01.1970"), TimeCurrent()))
-    {
-
-      for (int i = 0; i < ArraySize(values); i += 1)
-      {
-
-        MqlCalendarEvent event;
-
-        if (CalendarEventById(values[i].event_id, event))
-        {
-
-          MqlCalendarCountry country;
-
-          if (CalendarCountryById(event.country_id, country))
-          {
-
-            economicNews newsBT;
-            createEconomicNews(event, values[i], country, newsBT);
-            FileWrite(fileHandle, newsToString(newsBT));
-          }
-        }
-      }
-    }
-  }
-
-  FileClose(fileHandle);
-
-  Print("End of news download ");
-}
-
-bool getBTnews(long period, economicNews &newsBT[])
-{
-
-  ArrayResize(newsBT, 0);
-  int fileHandle = FileOpen("news" + ".csv", FILE_READ | FILE_COMMON);
-
-  if (fileHandle != INVALID_HANDLE)
-  {
-
-    while (!FileIsEnding(fileHandle))
-    {
-
-      economicNews n;
-      if (stringToNews(FileReadString(fileHandle), n))
-      {
-
-        if (n.value.time < TimeCurrent() + period && n.value.time > TimeCurrent() - period)
-        {
-
-          ArrayResize(newsBT, ArraySize(newsBT) + 1);
-          newsBT[ArraySize(newsBT) - 1] = n;
-        }
-      }
-    }
-
-    FileClose(fileHandle);
-    return true;
-  }
-
-  FileClose(fileHandle);
-  return false;
-}
-
-int barsTotalCalendarValue;
-void GetCalendarValue()
-{
-  if (!IsNewBar(PERIOD_D1, barsTotalCalendarValue))
-    return;
-  if (MQLInfoInteger(MQL_TESTER))
-  {
-    ArrayFree(newsHist);
-    getBTnews(PeriodSeconds(PERIOD_D1), newsHist);
-    return;
-  }
-  datetime startTime = iTime(symbolName, PERIOD_D1, 0);
-  datetime endTime = startTime + PeriodSeconds(PERIOD_D1);
-  ArrayFree(news);
-  CalendarValueHistory(news, startTime, endTime, symbolName, symbolName);
-}
-
-string lastNewsEvent;
-datetime iDay;
-datetime holiDay;
-int totalBarsEvent;
-bool IsNewsEvent()
-{
-  GetCalendarValue();
-  int amount = MQLInfoInteger(MQL_TESTER) ? ArraySize(newsHist) : ArraySize(news);
-  // if (amount == 0 && NewsFilter && MQLInfoInteger(MQL_TESTER))
-  //   Print("No news downloaded.");
-  for (int i = amount - 1; i >= 0; i--)
-  {
-    MqlCalendarEvent event;
-    MqlCalendarValue value;
-    MqlCalendarCountry country;
-
-    if (MQLInfoInteger(MQL_TESTER))
-    {
-      event = newsHist[i].event;
-      value = newsHist[i].value;
-      country = newsHist[i].country;
-    }
-    else
-    {
-      CalendarEventById(news[i].event_id, event);
-      CalendarValueById(news[i].id, value);
-      CalendarCountryById(event.country_id, country);
-    }
-
-    if (!(country.currency == SymbolInfoString(symbolName, SYMBOL_CURRENCY_MARGIN) || country.currency == SymbolInfoString(symbolName, SYMBOL_CURRENCY_BASE) || country.currency == SymbolInfoString(symbolName, SYMBOL_CURRENCY_PROFIT)))
-      continue;
-
-    int importanceTime = 1;
-    int importanceNewsMultiplier = 1;
-
-    if (event.importance == CALENDAR_IMPORTANCE_NONE)
-      continue;
-    if (event.importance == CALENDAR_IMPORTANCE_LOW)
-      importanceTime = PeriodSeconds(LowNewsTimeFrame);
-    if (event.importance == CALENDAR_IMPORTANCE_MODERATE)
-    {
-      importanceTime = PeriodSeconds(MediumNewsTimeFrame);
-      importanceNewsMultiplier = 2;
-    }
-    if (event.importance == CALENDAR_IMPORTANCE_HIGH)
-    {
-      importanceTime = PeriodSeconds(HighNewsTimeFrame);
-      importanceNewsMultiplier = 3;
-    }
-    if (!InpNewsImportanceMultiplier)
-      importanceNewsMultiplier = 1;
-
-    importanceTime = importanceTime * importanceNewsMultiplier * InpNewsTimeOffset;
-
-    if (value.time <= TimeCurrent() + importanceTime && value.time >= TimeCurrent() - importanceTime)
-      return true;
-  }
-  return false;
-}
-
-bool arrayContains(string &arr[], string value)
-{
-  for (int i = ArraySize(arr) - 1; i >= 0; i--)
-  {
-    if (arr[i] == value)
-      return true;
-  }
-  return false;
-}
-
-bool IsNewBar(ENUM_TIMEFRAMES timeFrame, int &barsTotal)
-{
-  int bars = iBars(symbolName, timeFrame);
-  if (bars == barsTotal)
-    return false;
-
-  barsTotal = bars;
-  return true;
-}
-
-int barsTotalMovingAverage;
-int lastDirection;
-double ma_value;
-void MovingAverage()
-{
-  if (MA_Period <= 0)
-    return;
-  int maHandle = iMA(symbolName, MA_TimeFrame, MA_Period, 0, MA_Method, MA_Price);
-  double maBuffer[];
-  ArraySetAsSeries(maBuffer, true);
-  CopyBuffer(maHandle, 0, 0, changePeriod * 2, maBuffer);
-  ma_value = NormalizeDouble(maBuffer[0], Digits());
-  IsNewBar(MA_TimeFrame, barsTotalMovingAverage);
-  for (int i = 0; i < changePeriod; i++)
-  {
-    double close = iClose(symbolName, MA_TimeFrame, i);
-    double ma = maBuffer[i];
-    int direction = close > ma ? 1 : close < ma ? -1
-                                                : 0;
-    if (i == 0)
-      lastDirection = direction;
-    if (direction != lastDirection)
-      lastDirection = 0;
-
-    datetime start_time = iTime(symbolName, MA_TimeFrame, i);
-    datetime end_time = start_time + PeriodSeconds(MA_TimeFrame);
-    ObjectCreate(0, "Ma " + (string)start_time, OBJ_TREND, 0, start_time, maBuffer[i + 1], end_time, ma);
-    ObjectSetInteger(0, "Ma " + (string)start_time, OBJPROP_STYLE, STYLE_SOLID);
-    ObjectSetInteger(0, "Ma " + (string)start_time, OBJPROP_WIDTH, 4);
-    ObjectSetInteger(0, "Ma " + (string)start_time, OBJPROP_BACK, true);
-    ObjectSetInteger(0, "Ma " + (string)start_time, OBJPROP_COLOR, lastDirection == 1 ? clrGreen : lastDirection == -1 ? clrRed
-                                                                                                                       : clrBlue);
-  }
+   return lots;
 }
