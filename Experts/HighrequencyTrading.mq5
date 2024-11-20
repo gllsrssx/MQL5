@@ -204,7 +204,7 @@ void OnTick()
          }
          double lastPrice = symbol.lastPrice;
 
-        if (((atr[0] <= atr[InpAtrFilter-1] && InpAtrFilter > 0) || (InpMaxSpread > 0 && SymbolInfoInteger(sym, SYMBOL_SPREAD) > InpMaxSpread) || (InpStartTradingHour > 0 && dt.hour < InpStartTradingHour) || (InpStopTradingHour > 0 && dt.hour > InpStopTradingHour)) && positionCount==0) {
+        if (((InpAtrFilter > 0? atr[0] <= atr[InpAtrFilter-1]:false) || (InpMaxSpread > 0 && SymbolInfoInteger(sym, SYMBOL_SPREAD) > InpMaxSpread) || (InpStartTradingHour > 0 && dt.hour < InpStartTradingHour) || (InpStopTradingHour > 0 && dt.hour > InpStopTradingHour)) && positionCount==0) {
          //Comment("no trading allowed due to spread or server time.");
          symbol.lastPrice = 0;
          continue;
