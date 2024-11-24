@@ -59,10 +59,10 @@ input bool UseAtrSignal = true; // Atr Signal
 input int AtrPeriods = 14;      // Atr Period
 input int AtrDeclinePeriod = 4; // Atr Decline Period
 
-input bool UseEmaSignal = true; // Ema Signal
-input int emaShortPeriod = 7;   // Ema Short
-input int emaMediumPeriod = 14; // Ema Medium
-input int emaLongPeriod = 21;   // Ema Long
+input bool UseEmaSignal = true;                  // Ema Signal
+input int emaShortPeriod = 7;                    // Ema Short
+input int emaMediumPeriod = 14;                  // Ema Medium
+input int emaLongPeriod = 21;                    // Ema Long
 input ENUM_APPLIED_PRICE emaPrice = PRICE_CLOSE; // Ema Price
 
 input int Magic = 8;            // Magic Number
@@ -220,7 +220,7 @@ void OnTick()
       ArraySetAsSeries(emaL, true);
       ArraySetAsSeries(emaM, true);
       ArraySetAsSeries(emaS, true);
-      CopyBuffer(symbol.handleEmaS, 0, 0, emaShortPeriod+1, emaS);
+      CopyBuffer(symbol.handleEmaS, 0, 0, emaShortPeriod + 1, emaS);
       CopyBuffer(symbol.handleEmaM, 0, 0, emaMediumPeriod, emaM);
       CopyBuffer(symbol.handleEmaL, 0, 0, emaLongPeriod, emaL);
 
