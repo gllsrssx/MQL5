@@ -309,7 +309,7 @@ void OnTick()
          }
       }
 
-      bool emaSignal = !((emaS[0] > emaM[0] && emaM[0] > emaL[0]) || (emaS[0] < emaM[0] && emaM[0] < emaL[0]));
+      bool emaSignal = !((emaS[1] > emaM[1] && emaM[1] > emaL[1]) || (emaS[1] < emaM[1] && emaM[1] < emaL[1]));
 
       if (posC == 0 && (isAtrSignal || !UseAtrSignal) && (emaSignal || !UseEmaSignal) && (StartTradingHour == 0 || dt.hour > StartTradingHour) && (StopTradingHour == 0 || dt.hour < StopTradingHour) && (maxSpread == 0 || maxSpread > SymbolInfoInteger(symbol.symbol, SYMBOL_SPREAD)))
       {
