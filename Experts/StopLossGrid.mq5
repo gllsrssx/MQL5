@@ -55,14 +55,15 @@ input double RiskValueAmount = 1.0;                // Risk Amount
 
 input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // TimeFrame
 
+input bool UseAtrSignal = true; // Atr Signal
 input int AtrPeriods = 14;      // Atr Period
 input int AtrDeclinePeriod = 4; // Atr Decline Period
-input int emaLongPeriod = 21;   // Ema Long
-input int emaMediumPeriod = 14; // Ema Medium
-input int emaShortPeriod = 7;   // Ema Short
 
-input bool UseAtrSignal = true; // Atr Signal
 input bool UseEmaSignal = true; // Ema Signal
+input int emaShortPeriod = 7;   // Ema Short
+input int emaMediumPeriod = 14; // Ema Medium
+input int emaLongPeriod = 21;   // Ema Long
+input ENUM_APPLIED_PRICE emaPrice = PRICE_CLOSE; // Ema Price
 
 input int Magic = 8;            // Magic Number
 input int StartTradingHour = 2; // Start Trading Hour
@@ -177,10 +178,6 @@ int OnInit()
    for (int i = ArraySize(arrSymbols) - 1; i >= 0; i--)
    {
       CSymbol *symbol = new CSymbol(arrSymbols[i]);
-      symbol.handleAtr = iATR(symbol.symbol, InpTimeFrame, AtrPeriods);
-      symbol.handleEmaL = iMA(symbol.symbol, InpTimeFrame, emaLongPeriod, 0, MODE_EMA, PRICE_CLOSE);
-      symbol.handleEmaM = iMA(symbol.symbol, InpTimeFrame, emaMediumPeriod, 0, MODE_EMA, PRICE_CLOSE);
-      symbol.handleEmaS = iMA(symbol.symbol, InpTimeFrame, emaShortPeriod, 0, MODE_EMA, PRICE_CLOSE);
       symbols.Add(symbol);
    }
 
@@ -211,15 +208,19 @@ void OnTick()
       int posC = PositionsCount(symbol.symbol);
       double last = (SymbolInfoDouble(symbol.symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol.symbol, SYMBOL_BID)) / 2;
 
+      symbol.handleAtr = iATR(symbol.symbol, InpTimeFrame, AtrPeriods);
       double atr[];
       ArraySetAsSeries(atr, true);
       CopyBuffer(symbol.handleAtr, MAIN_LINE, 0, AtrDeclinePeriod + AtrPeriods + 1, atr);
 
+      symbol.handleEmaL = iMA(symbol.symbol, InpTimeFrame, emaLongPeriod, 0, MODE_EMA, emaPrice);
+      symbol.handleEmaM = iMA(symbol.symbol, InpTimeFrame, emaMediumPeriod, 0, MODE_EMA, PRICE_CLOSE);
+      symbol.handleEmaS = iMA(symbol.symbol, InpTimeFrame, emaShortPeriod, 0, MODE_EMA, PRICE_CLOSE);
       double emaL[], emaM[], emaS[];
       ArraySetAsSeries(emaL, true);
       ArraySetAsSeries(emaM, true);
       ArraySetAsSeries(emaS, true);
-      CopyBuffer(symbol.handleEmaS, 0, 0, emaShortPeriod, emaS);
+      CopyBuffer(symbol.handleEmaS, 0, 0, emaShortPeriod+1, emaS);
       CopyBuffer(symbol.handleEmaM, 0, 0, emaMediumPeriod, emaM);
       CopyBuffer(symbol.handleEmaL, 0, 0, emaLongPeriod, emaL);
 
@@ -298,7 +299,16 @@ void OnTick()
          }
       }
 
-      bool isAtrSignal = AtrDeclinePeriod > 0 ? atr[0] > atr[AtrDeclinePeriod] : true;
+      bool isAtrSignal = true;
+      for (int i = 0; i < AtrDeclinePeriod; i++)
+      {
+         if (atr[i] > atr[i + 1])
+         {
+            isAtrSignal = false;
+            break;
+         }
+      }
+
       bool emaSignal = !((emaS[0] > emaM[0] && emaM[0] > emaL[0]) || (emaS[0] < emaM[0] && emaM[0] < emaL[0]));
 
       if (posC == 0 && (isAtrSignal || !UseAtrSignal) && (emaSignal || !UseEmaSignal) && (StartTradingHour == 0 || dt.hour > StartTradingHour) && (StopTradingHour == 0 || dt.hour < StopTradingHour) && (maxSpread == 0 || maxSpread > SymbolInfoInteger(symbol.symbol, SYMBOL_SPREAD)))
