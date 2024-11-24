@@ -15,6 +15,9 @@ public:
    string symbol;
    CArrayLong tickets;
    int handleAtr;
+   int handleEmaL;
+   int handleEmaM;
+   int handleEmaS;
    double distance;
    double level;
    int direction;
@@ -34,36 +37,43 @@ enum ENUM_SYMBOLS
    SYMBOLS_USDJPY,
    SYMBOLS_MINOR,
 };
-input ENUM_SYMBOLS SymbolsInput = SYMBOLS_ALL;
+input ENUM_SYMBOLS SymbolsInput = SYMBOLS_ALL; // Symbols
 enum ENUM_RISK_VALUE
 {
    RISK_VALUE_LOT,
    RISK_VALUE_PERCENT
 };
-input ENUM_RISK_VALUE RiskValue = RISK_VALUE_PERCENT;
+input ENUM_RISK_VALUE RiskValue = RISK_VALUE_PERCENT; // Risk Value
 enum ENUM_RISK_TYPE
 {
    RISK_TYPE_BALANCE,
    RISK_TYPE_EQUITY,
    RISK_TYPE_STATIC
 };
-input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE;
-input double RiskValueAmount = 1.0;
+input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
+input double RiskValueAmount = 1.0;                // Risk Amount
 
-input ENUM_TIMEFRAMES AtrTimeframe = PERIOD_M15;
-input int AtrPeriods = 14;
-input int AtrDeclinePeriod = 4;
+input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // TimeFrame
 
-input int Magic = 8;
-input int StartTradingHour = 2;
-input int StopTradingHour = 20;
-input int maxSpread = 20;
-input bool Martingale = false;
+input int AtrPeriods = 14;      // Atr Period
+input int AtrDeclinePeriod = 4; // Atr Decline Period
+input int emaLongPeriod = 21;   // Ema Long
+input int emaMediumPeriod = 14; // Ema Medium
+input int emaShortPeriod = 7;   // Ema Short
+
+input bool UseAtrSignal = true; // Atr Signal
+input bool UseEmaSignal = true; // Ema Signal
+
+input int Magic = 8;            // Magic Number
+input int StartTradingHour = 2; // Start Trading Hour
+input int StopTradingHour = 20; // Stop Trading Hour
+input int maxSpread = 20;       // Max Allowed Spread
+input bool Martingale = false;  // Martingale
 
 CArrayObj symbols;
-//int barsTotal;
-double arrMartin[] = {1,1,2.5,5,10,20,40,80,160,320,0};
-int maxRetrace=0;
+// int barsTotal;
+double arrMartin[] = {1, 1, 2.5, 5, 10, 20, 40, 80, 160, 320, 0};
+int maxRetrace = 0;
 
 int OnInit()
 {
@@ -167,7 +177,10 @@ int OnInit()
    for (int i = ArraySize(arrSymbols) - 1; i >= 0; i--)
    {
       CSymbol *symbol = new CSymbol(arrSymbols[i]);
-      symbol.handleAtr = iATR(symbol.symbol, AtrTimeframe, AtrPeriods);
+      symbol.handleAtr = iATR(symbol.symbol, InpTimeFrame, AtrPeriods);
+      symbol.handleEmaL = iMA(symbol.symbol, InpTimeFrame, emaLongPeriod, 0, MODE_EMA, PRICE_CLOSE);
+      symbol.handleEmaM = iMA(symbol.symbol, InpTimeFrame, emaMediumPeriod, 0, MODE_EMA, PRICE_CLOSE);
+      symbol.handleEmaS = iMA(symbol.symbol, InpTimeFrame, emaShortPeriod, 0, MODE_EMA, PRICE_CLOSE);
       symbols.Add(symbol);
    }
 
@@ -183,7 +196,7 @@ void OnTick()
    MqlDateTime dt;
    TimeCurrent(dt);
 
-   // int bars = iBars(_Symbol, AtrTimeframe);
+   // int bars = iBars(_Symbol, InpTimeFrame);
    // if (barsTotal != bars)
    // {
    //    barsTotal = bars;
@@ -198,9 +211,22 @@ void OnTick()
       int posC = PositionsCount(symbol.symbol);
       double last = (SymbolInfoDouble(symbol.symbol, SYMBOL_ASK) + SymbolInfoDouble(symbol.symbol, SYMBOL_BID)) / 2;
 
+      double atr[];
+      ArraySetAsSeries(atr, true);
+      CopyBuffer(symbol.handleAtr, MAIN_LINE, 0, AtrDeclinePeriod + AtrPeriods + 1, atr);
+
+      double emaL[], emaM[], emaS[];
+      ArraySetAsSeries(emaL, true);
+      ArraySetAsSeries(emaM, true);
+      ArraySetAsSeries(emaS, true);
+      CopyBuffer(symbol.handleEmaS, 0, 0, emaShortPeriod, emaS);
+      CopyBuffer(symbol.handleEmaM, 0, 0, emaMediumPeriod, emaM);
+      CopyBuffer(symbol.handleEmaL, 0, 0, emaLongPeriod, emaL);
+
       for (int i = symbol.tickets.Total() - 1; i >= 0; i--)
       {
-         if(posC==0)break;
+         if (posC == 0)
+            break;
          double levelAbove = symbol.level + symbol.distance;
          double levelBelow = symbol.level - symbol.distance;
 
@@ -210,84 +236,79 @@ void OnTick()
                             (symbol.direction == 0 && last <= levelBelow));
          if (gridSignal)
          {
-            symbol.direction = symbol.direction == 0 && last >= levelAbove ? 1 : 
-                               symbol.direction == 0 && last <= levelBelow ? -1 : 
-                               symbol.direction;
+            symbol.direction = symbol.direction == 0 && last >= levelAbove ? 1 : symbol.direction == 0 && last <= levelBelow ? -1
+                                                                                                                             : symbol.direction;
             symbol.level = last;
             double lots = symbol.lots;
             double adjustedLots = lots * arrMartin[symbol.retrace];
             double lotStep = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_STEP);
             double minVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MIN);
             double maxVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MAX);
-            
+
             adjustedLots = MathRound(adjustedLots / lotStep) * lotStep;
             if (adjustedLots < minVol)
                adjustedLots = minVol;
             else if (adjustedLots > maxVol)
                adjustedLots = maxVol;
 
-            trade.Sell(Martingale && symbol.direction == 1 ? adjustedLots: lots, symbol.symbol, 0, 0, symbol.level - symbol.distance);
+            trade.Sell(Martingale && symbol.direction == 1 ? adjustedLots : lots, symbol.symbol, 0, 0, symbol.level - symbol.distance);
             if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
             {
                Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
                symbol.tickets.Add(trade.ResultOrder());
             }
-            trade.Buy(Martingale && symbol.direction == -1 ? adjustedLots: lots, symbol.symbol, 0, 0, symbol.level + symbol.distance); 
+            trade.Buy(Martingale && symbol.direction == -1 ? adjustedLots : lots, symbol.symbol, 0, 0, symbol.level + symbol.distance);
             if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
             {
                Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
                symbol.tickets.Add(trade.ResultOrder());
             }
-            if(Martingale)Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
+            if (Martingale)
+               Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
 
             for (int k = symbol.tickets.Total() - 1; k >= 0; k--)
             {
                CPositionInfo pos;
                if (pos.SelectByTicket(symbol.tickets.At(k)))
                {
-                     int digits = (int)SymbolInfoInteger(symbol.symbol,SYMBOL_DIGITS);
-                     if (pos.PositionType() == POSITION_TYPE_BUY)
-                     {
-                        double takeProfit = NormalizeDouble(symbol.level + symbol.distance,digits);
-                        double stopLoss = NormalizeDouble(symbol.direction == 1? symbol.level - symbol.distance: 0,digits);
-                        
-                        if(pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)continue;
-                        trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
-                     }
-                     else if (pos.PositionType() == POSITION_TYPE_SELL)
-                     {
-                     
-                        double takeProfit = NormalizeDouble(symbol.level - symbol.distance,digits);
-                        double stopLoss = NormalizeDouble(symbol.direction == -1? symbol.level + symbol.distance: 0,digits);
-                        if(pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)continue;
-                        trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
-                     }
+                  int digits = (int)SymbolInfoInteger(symbol.symbol, SYMBOL_DIGITS);
+                  if (pos.PositionType() == POSITION_TYPE_BUY)
+                  {
+                     double takeProfit = NormalizeDouble(symbol.level + symbol.distance, digits);
+                     double stopLoss = NormalizeDouble(symbol.direction == 1 ? symbol.level - symbol.distance : 0, digits);
+
+                     if (pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)
+                        continue;
+                     trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
+                  }
+                  else if (pos.PositionType() == POSITION_TYPE_SELL)
+                  {
+
+                     double takeProfit = NormalizeDouble(symbol.level - symbol.distance, digits);
+                     double stopLoss = NormalizeDouble(symbol.direction == -1 ? symbol.level + symbol.distance : 0, digits);
+                     if (pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)
+                        continue;
+                     trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
+                  }
                }
             }
-            symbol.retrace++;if(symbol.retrace>maxRetrace)maxRetrace=symbol.retrace;
+            symbol.retrace++;
+            if (symbol.retrace > maxRetrace)
+               maxRetrace = symbol.retrace;
          }
       }
-      
-      double atr[];
-      CopyBuffer(symbol.handleAtr, MAIN_LINE, 1, AtrDeclinePeriod+1, atr);
-      bool isAtrSignal = true;
-      for (int i = 0; i < AtrDeclinePeriod; i++)
-      {
-         if (atr[i] <= atr[i + 1])
-         {
-            isAtrSignal = false;
-            break;
-         }
-      }
-      
-      if (posC == 0 && isAtrSignal && (StartTradingHour==0||dt.hour > StartTradingHour) && (StopTradingHour==0|| dt.hour < StopTradingHour) && maxSpread > SymbolInfoInteger(symbol.symbol, SYMBOL_SPREAD))
+
+      bool isAtrSignal = AtrDeclinePeriod > 0 ? atr[0] > atr[AtrDeclinePeriod] : true;
+      bool emaSignal = !((emaS[0] > emaM[0] && emaM[0] > emaL[0]) || (emaS[0] < emaM[0] && emaM[0] < emaL[0]));
+
+      if (posC == 0 && (isAtrSignal || !UseAtrSignal) && (emaSignal || !UseEmaSignal) && (StartTradingHour == 0 || dt.hour > StartTradingHour) && (StopTradingHour == 0 || dt.hour < StopTradingHour) && (maxSpread == 0 || maxSpread > SymbolInfoInteger(symbol.symbol, SYMBOL_SPREAD)))
       {
          symbol.distance = atr[0];
          symbol.level = last;
          symbol.direction = 0;
          symbol.retrace = 0;
          symbol.lots = Volume(symbol.symbol, symbol.distance);
-         
+
          Print(__FUNCTION__, " > First signal for ", symbol.symbol, "...");
          trade.Sell(symbol.lots, symbol.symbol, 0, 0, last - atr[0]);
          if (trade.ResultOrder() > 0 && trade.ResultRetcode() == TRADE_RETCODE_DONE)
@@ -305,8 +326,9 @@ void OnTick()
    }
 }
 
-int PositionsCount(string sym){
-   int count=0;
+int PositionsCount(string sym)
+{
+   int count = 0;
    for (int i = PositionsTotal() - 1; i >= 0; i--)
    {
       ulong ticket = PositionGetTicket(i);
