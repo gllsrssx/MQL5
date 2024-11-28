@@ -197,17 +197,18 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
+   Print(__FUNCTION__, " > Deinitializing...");
+   Print(__FUNCTION__, " > Reason: ", reason);
+   Print(__FUNCTION__, " > Max Retrace: ", maxRetrace);
 }
 
 void OnTick()
 {
+   if (!TradingAllowed())
+      return;
+
    MqlDateTime dt;
    TimeCurrent(dt);
-
-   // int bars = iBars(_Symbol, InpTimeFrame);
-   // if (barsTotal != bars)
-   // {
-   //    barsTotal = bars;
 
    for (int j = symbols.Total() - 1; j >= 0; j--)
    {
@@ -275,8 +276,6 @@ void OnTick()
                Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
                symbol.tickets.Add(trade.ResultOrder());
             }
-            // if (Martingale)
-            //  Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
 
             for (int k = symbol.tickets.Total() - 1; k >= 0; k--)
             {
@@ -390,4 +389,47 @@ double Volume(string symbolName, double distance)
       return maxVol;
 
    return lots;
+}
+
+bool TradingAllowed(string symbol = NULL)
+{
+   if (symbol == NULL)
+      symbol = Symbol();
+
+   MqlDateTime dt;
+   datetime now = TimeCurrent(dt);
+   ENUM_DAY_OF_WEEK day = (ENUM_DAY_OF_WEEK)dt.day_of_week;
+
+   // PrintFormat("Checking trading allowed for symbol: %s at time: %s", symbol, TimeToString(now, TIME_DATE | TIME_MINUTES));
+
+   int now_hour = dt.hour;
+   int now_minute = dt.min;
+
+   for (int i = 0; i < 7; i++)
+   {
+      datetime start, end;
+      if (SymbolInfoSessionTrade(symbol, day, i, start, end))
+      {
+         MqlDateTime start_dt, end_dt;
+         TimeToStruct(start, start_dt);
+         TimeToStruct(end, end_dt);
+
+         int start_hour = start_dt.hour;
+         int start_minute = start_dt.min;
+         int end_hour = end_dt.hour;
+         int end_minute = end_dt.min;
+
+         // PrintFormat("Session %d: start = %02d:%02d, end = %02d:%02d, day = %d", i, start_hour, start_minute, end_hour, end_minute, day);
+         // PrintFormat("Current time: %02d:%02d, Start time: %02d:%02d, End time: %02d:%02d, Day: %d", now_hour, now_minute, start_hour, start_minute, end_hour, end_minute, day);
+
+         if ((now_hour > start_hour || (now_hour == start_hour && now_minute >= start_minute)) &&
+             (now_hour < end_hour || (now_hour == end_hour && now_minute < end_minute)))
+         {
+            // Print("Trading is allowed");
+            return true; // Trading is allowed
+         }
+      }
+   }
+   // Print("Trading is not allowed");
+   return false; // Trading is not allowed
 }
