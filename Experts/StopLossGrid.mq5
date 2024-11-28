@@ -25,6 +25,8 @@ public:
    double lots;
 };
 
+input group "Symbol";
+input int Magic = 8; // Magic Number
 enum ENUM_SYMBOLS
 {
    SYMBOLS_ALL,
@@ -38,12 +40,17 @@ enum ENUM_SYMBOLS
    SYMBOLS_MINOR,
 };
 input ENUM_SYMBOLS SymbolsInput = SYMBOLS_ALL; // Symbols
+input int maxSpread = 20;                      // Max Allowed Spread (0=off)
+
+input group "Risk";
+input double RiskValueAmount = 1.0; // Risk Amount
 enum ENUM_RISK_VALUE
 {
    RISK_VALUE_LOT,
    RISK_VALUE_PERCENT
 };
 input ENUM_RISK_VALUE RiskValue = RISK_VALUE_PERCENT; // Risk Value
+
 enum ENUM_RISK_TYPE
 {
    RISK_TYPE_BALANCE,
@@ -51,33 +58,37 @@ enum ENUM_RISK_TYPE
    RISK_TYPE_STATIC
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
-input double RiskValueAmount = 1.0;                // Risk Amount
+input double Martingale = 0.5;                     // Martingale (0=off)
+input double RetraceMultiplier = 0.5;              // Retrace Multiplier (0=off)
 
+input group "Timeframe";
 input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // TimeFrame
+input int StartTradingHour = 2;                  // Start Trading Hour (0=off)
+input int StopTradingHour = 22;                  // Stop Trading Hour (0=off)
 
+input group "ATR Filter";
 input bool UseAtrSignal = true; // Atr Signal
 input int AtrPeriods = 14;      // Atr Period
 input int AtrDeclinePeriod = 4; // Atr Decline Period
 
+input group "EMA Filter";
 input bool UseEmaSignal = true;                  // Ema Signal
 input int emaShortPeriod = 7;                    // Ema Short
 input int emaMediumPeriod = 14;                  // Ema Medium
 input int emaLongPeriod = 21;                    // Ema Long
 input ENUM_APPLIED_PRICE emaPrice = PRICE_CLOSE; // Ema Price
 
-input int Magic = 8;            // Magic Number
-input int StartTradingHour = 2; // Start Trading Hour
-input int StopTradingHour = 20; // Stop Trading Hour
-input int maxSpread = 20;       // Max Allowed Spread
-input bool Martingale = false;  // Martingale
-
 CArrayObj symbols;
-// int barsTotal;
-double arrMartin[] = {1, 1, 2.5, 5, 10, 20, 40, 80, 160, 320, 0};
 int maxRetrace = 0;
 
 int OnInit()
 {
+
+   if (!(emaLongPeriod > emaMediumPeriod && emaMediumPeriod > emaShortPeriod))
+   {
+      return INIT_PARAMETERS_INCORRECT;
+   }
+
    string arrSymbols[];
    if (SymbolsInput == SYMBOLS_MAJOR)
    {
@@ -241,7 +252,7 @@ void OnTick()
                                                                                                                              : symbol.direction;
             symbol.level = last;
             double lots = symbol.lots;
-            double adjustedLots = lots * arrMartin[symbol.retrace];
+            double adjustedLots = Martingale * symbol.retrace > 1 ? lots * symbol.retrace * Martingale : lots;
             double lotStep = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_STEP);
             double minVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MIN);
             double maxVol = SymbolInfoDouble(symbol.symbol, SYMBOL_VOLUME_MAX);
@@ -264,8 +275,8 @@ void OnTick()
                Print(__FUNCTION__, " > Ticket added for ", symbol.symbol, "...");
                symbol.tickets.Add(trade.ResultOrder());
             }
-            if (Martingale)
-               Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
+            // if (Martingale)
+            //  Print(__FUNCTION__, " > retrace level ", symbol.retrace, " > martin multiplier ", arrMartin[symbol.retrace]);
 
             for (int k = symbol.tickets.Total() - 1; k >= 0; k--)
             {
@@ -275,8 +286,8 @@ void OnTick()
                   int digits = (int)SymbolInfoInteger(symbol.symbol, SYMBOL_DIGITS);
                   if (pos.PositionType() == POSITION_TYPE_BUY)
                   {
-                     double takeProfit = NormalizeDouble(symbol.level + symbol.distance, digits);
-                     double stopLoss = NormalizeDouble(symbol.direction == 1 ? symbol.level - symbol.distance : 0, digits);
+                     double takeProfit = NormalizeDouble(symbol.level + symbol.distance * (RetraceMultiplier > 0 && symbol.retrace > 1 && symbol.direction == -1 ? symbol.retrace * RetraceMultiplier : 1), digits);
+                     double stopLoss = NormalizeDouble(symbol.direction == 1 ? symbol.level - symbol.distance * (RetraceMultiplier > 0 && symbol.retrace > 1 ? symbol.retrace * RetraceMultiplier : 1) : 0, digits);
 
                      if (pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)
                         continue;
@@ -284,9 +295,8 @@ void OnTick()
                   }
                   else if (pos.PositionType() == POSITION_TYPE_SELL)
                   {
-
-                     double takeProfit = NormalizeDouble(symbol.level - symbol.distance, digits);
-                     double stopLoss = NormalizeDouble(symbol.direction == -1 ? symbol.level + symbol.distance : 0, digits);
+                     double takeProfit = NormalizeDouble(symbol.level - symbol.distance * (RetraceMultiplier > 0 && symbol.retrace > 1 && symbol.direction == 1 ? symbol.retrace * RetraceMultiplier : 1), digits);
+                     double stopLoss = NormalizeDouble(symbol.direction == -1 ? symbol.level + symbol.distance * (RetraceMultiplier > 0 && symbol.retrace > 1 ? symbol.retrace * RetraceMultiplier : 1) : 0, digits);
                      if (pos.TakeProfit() == takeProfit && pos.StopLoss() == stopLoss)
                         continue;
                      trade.PositionModify(pos.Ticket(), stopLoss, takeProfit);
