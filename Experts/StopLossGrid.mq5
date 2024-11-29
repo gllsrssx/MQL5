@@ -43,7 +43,7 @@ input ENUM_SYMBOLS SymbolsInput = SYMBOLS_ALL; // Symbols
 input int maxSpread = 20;                      // Max Allowed Spread (0=off)
 
 input group "Risk";
-input double RiskValueAmount = 1.0; // Risk Amount
+input double RiskValueAmount = 0.1; // Risk Amount
 enum ENUM_RISK_VALUE
 {
    RISK_VALUE_LOT,
@@ -57,9 +57,9 @@ enum ENUM_RISK_TYPE
    RISK_TYPE_EQUITY,
    RISK_TYPE_STATIC
 };
-input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
-input double Martingale = 0.5;                     // Martingale (0=off)
-input double RetraceMultiplier = 0.5;              // Retrace Multiplier (0=off)
+input ENUM_RISK_TYPE RiskType = RISK_TYPE_EQUITY; // Risk Type
+input double Martingale = 0.0;                    // Martingale (0=off)
+input double RetraceMultiplier = 1;               // Retrace Multiplier (0=off)
 
 input group "Timeframe";
 input ENUM_TIMEFRAMES InpTimeFrame = PERIOD_M15; // TimeFrame
@@ -68,14 +68,14 @@ input int StopTradingHour = 22;                  // Stop Trading Hour (0=off)
 
 input group "ATR Filter";
 input bool UseAtrSignal = true; // Atr Signal
-input int AtrPeriods = 14;      // Atr Period
-input int AtrDeclinePeriod = 4; // Atr Decline Period
+input int AtrPeriods = 20;      // Atr Period
+input int AtrDeclinePeriod = 1; // Atr Decline Period
 
 input group "EMA Filter";
 input bool UseEmaSignal = true;                  // Ema Signal
-input int emaShortPeriod = 7;                    // Ema Short
-input int emaMediumPeriod = 14;                  // Ema Medium
-input int emaLongPeriod = 21;                    // Ema Long
+input int emaShortPeriod = 1;                    // Ema Short
+input int emaMediumPeriod = 5;                   // Ema Medium
+input int emaLongPeriod = 20;                    // Ema Long
 input ENUM_APPLIED_PRICE emaPrice = PRICE_CLOSE; // Ema Price
 
 CArrayObj symbols;
