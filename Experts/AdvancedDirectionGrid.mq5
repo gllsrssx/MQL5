@@ -51,7 +51,9 @@ public:
 
         // open first position if tickets array is empty
         if (tickets.Total() == 0)
+        {
             execute();
+        }
         else
         {
             // open more positions if next trigger level is hit
@@ -60,8 +62,10 @@ public:
                 if (mode == GRID_NEUTRAL || mode == GRID_PROFIT)
                 {
                     if (bid > last + last * GridPercentProfit / 100)
+                    {
                         execute();
-                    mode = GRID_PROFIT;
+                        mode = GRID_PROFIT;
+                    }
                 }
             }
             if (mode == GRID_NEUTRAL || mode == GRID_LOSS)
@@ -78,8 +82,10 @@ public:
             if (mode == GRID_NEUTRAL || mode == GRID_PROFIT)
             {
                 if (bid < last - last * GridPercentProfit / 100)
+                {
                     execute();
-                mode = GRID_PROFIT;
+                    mode = GRID_PROFIT;
+                }
             }
             if (mode == GRID_NEUTRAL || mode == GRID_LOSS)
             {
@@ -115,7 +121,9 @@ public:
                         if (deal.DealType() == DEAL_TYPE_BUY)
                         {
                             if (dir == GRID_SELL)
+                            {
                                 return;
+                            }
                             if (mode == GRID_PROFIT)
                             {
                                 sl = last - last * slProfit[MathMin(ArraySize(slProfit) - 1, tickets.Total() - 1)] / 100;
@@ -128,7 +136,9 @@ public:
                         else if (deal.DealType() == DEAL_TYPE_SELL)
                         {
                             if (dir == GRID_BUY)
+                            {
                                 return;
+                            }
                             if (mode == GRID_PROFIT)
                             {
                                 sl = last + last * slProfit[MathMin(ArraySize(slProfit) - 1, tickets.Total() - 1)] / 100;
@@ -144,7 +154,9 @@ public:
                         {
                             CPositionInfo pos;
                             if (pos.SelectByTicket(tickets.At(i)))
-                                trade.PositionModify(pos.Ticket(), tp, sl);
+                            {
+                                trade.PositionModify(pos.Ticket(), sl, tp);
+                            }
                         }
                     }
                 }
@@ -152,22 +164,31 @@ public:
                 {
                     // remove ticket from array after, close all remaining positions and reset grid if all trades were closed
                     if (deal.DealType() == DEAL_TYPE_BUY && dir == GRID_BUY)
+                    {
                         return;
+                    }
                     if (deal.DealType() == DEAL_TYPE_SELL && dir == GRID_SELL)
+                    {
                         return;
+                    }
 
                     CTrade trade;
                     for (int i = tickets.Total() - 1; i >= 0; i--)
                     {
                         CPositionInfo pos;
                         if (pos.SelectByTicket(tickets.At(i)))
+                        {
                             trade.PositionClose(pos.Ticket());
-
+                        }
                         if (tickets.At(i) == deal.PositionId())
+                        {
                             tickets.Delete(i);
+                        }
                     }
                     if (tickets.Total() == 0)
+                    {
                         mode = GRID_NEUTRAL;
+                    }
                 }
             }
         }
@@ -175,29 +196,38 @@ public:
 
 private:
     // private functions
-    void execute()
+    void
+    execute()
     {
         CTrade trade;
         double lots = Lots;
 
         // calculate lot size for next position
         if (mode == GRID_PROFIT)
+        {
             lots *= lotsProfit[MathMin(ArraySize(lotsProfit) - 1, tickets.Total())];
+        }
         if (mode == GRID_LOSS)
+        {
             lots *= lotsLoss[MathMin(ArraySize(lotsLoss) - 1, tickets.Total())];
-
+        }
         if (dir == GRID_BUY)
+        {
             trade.Buy(lots);
+        }
         if (dir == GRID_SELL)
+        {
             trade.Sell(lots);
-
+        }
         // update last grid execution price
         last = SymbolInfoDouble(_Symbol, SYMBOL_BID);
 
         // store new position ticket in tickets array
         ulong order = trade.ResultOrder();
         if (order > 0)
+        {
             tickets.Add(order);
+        }
     }
 };
 
@@ -241,5 +271,7 @@ void OnTradeTransaction(const MqlTradeTransaction &trans,
     gridSell.OnTradeTransactionEvent(trans, request, result);
 
     if (IsChartComment)
+    {
         Comment("\n\n", gridBuy.ToString(), "\n", gridSell.ToString());
+    }
 }
