@@ -41,7 +41,7 @@ int OnInit()
 {
     maHandle = iMA(Symbol(), MATimeFrame, MAPeriod, 0, MAMethod, MAPrice);
     atrHandle = iATR(Symbol(), ATRTimeFrame, ATRPeriod);
-
+    trade.SetExpertMagicNumber(Magic);
     return (INIT_SUCCEEDED);
 }
 
