@@ -75,6 +75,10 @@ void OnTick()
         }
     }
 
+    // if time is after 1.06 am.
+    if (currentHour <= 1 && currentMinute <= 6)
+        return;
+
     int bars = iBars(Symbol(), PERIOD_D1);
     if (bars == barsTotal)
         return;
@@ -121,7 +125,7 @@ void OnTick()
         macdM[i] = NormalizeValue(macdM[i], -100, 100, lowestMacdM, highestMacdM);
         macdS[i] = NormalizeValue(macdS[i], -100, 100, lowestMacdM, highestMacdM);
     }
-    Comment(" M:" + (int)macdM[0] + " S:" + (int)macdS[0]);
+    Comment(" M:" + (string)(int)macdM[0] + " S:" + (string)(int)macdS[0]);
 
     int barsBack = macdConfirmation ? 1 : 0;
 
