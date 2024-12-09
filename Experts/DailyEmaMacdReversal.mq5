@@ -7,13 +7,13 @@
 
 input long Magic = 123456;                   // Magic number
 input double Risk = 1.0;                     // Percentage of account balance to risk
-input int CloseHour = 19;                    // Hour to close trade
+input int CloseHour = 23;                    // Hour to close trade
 input int CloseMinute = 54;                  // Minute to close trade
 input ENUM_TIMEFRAMES TimeFrame = PERIOD_D1; // Timeframe
 // atr inputs
-input int ATRPeriod = 200; // ATR period
+input int ATRPeriod = 5; // ATR period
 // ma inputs
-input int MAPeriod = 200;                       // EMA period
+input int MAPeriod = 20;                        // EMA period
 input ENUM_MA_METHOD MAMethod = MODE_EMA;       // EMA method
 input ENUM_APPLIED_PRICE MAPrice = PRICE_CLOSE; // EMA price
 // macd inputs
@@ -21,7 +21,8 @@ input int MACDFast = 12;                          // MACD fast period
 input int MACDSlow = 26;                          // MACD slow period
 input int MACDSignal = 9;                         // MACD signal period
 input ENUM_APPLIED_PRICE MACDPrice = PRICE_CLOSE; // MACD price
-input bool macdConfirmation = true;               // MACD confirmation
+input int hLine = 5;                              // Horizontal minimum
+input bool macdConfirmation = false;              // MACD confirmation
 
 CTrade trade;
 int maHandle, atrHandle, macdHandle;
@@ -40,22 +41,47 @@ void OnDeinit(const int reason)
 {
 }
 
+double NormalizeValue(double value, double min, double max, double lowest, double highest)
+{
+    double range = highest - lowest;
+    double scaledValue = (value - lowest) / range;              // Scale to 0-1
+    double normalizedValue = (scaledValue * (max - min)) + min; // Scale to min-max
+    return normalizedValue;
+}
+
 void OnTick()
 {
     MqlDateTime mdt;
     TimeCurrent(mdt);
 
-    int bars = iBars(Symbol(), PERIOD_M1);
+    int currentDay = mdt.day_of_week;
+    int currentHour = mdt.hour;
+    int currentMinute = mdt.min;
+
+    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (PositionSelectByTicket(ticket) && PositionGetString(POSITION_SYMBOL) == Symbol() && PositionGetInteger(POSITION_MAGIC) == Magic)
+        {
+            datetime position_time = (datetime)PositionGetInteger(POSITION_TIME);
+            MqlDateTime openTime;
+            TimeToStruct(position_time, openTime);
+            int days = mdt.day - openTime.day;
+
+            if (days > 1 || (currentHour >= CloseHour && currentMinute >= CloseMinute))
+            {
+                trade.PositionClose(ticket);
+            }
+        }
+    }
+
+    int bars = iBars(Symbol(), PERIOD_D1);
     if (bars == barsTotal)
         return;
     barsTotal = bars;
 
     double ask = SymbolInfoDouble(Symbol(), SYMBOL_ASK);
     double bid = SymbolInfoDouble(Symbol(), SYMBOL_BID);
-
-    int currentDay = mdt.day_of_week;
-    int currentHour = mdt.hour;
-    int currentMinute = mdt.min;
 
     int posCount = 0;
     for (int i = PositionsTotal() - 1; i >= 0; i--)
@@ -77,19 +103,35 @@ void OnTick()
     ArraySetAsSeries(macdM, true);
     ArraySetAsSeries(macdS, true);
     // Storing results after defining MA, line, current data for MACD main line, MACD signal line
-    CopyBuffer(macdHandle, 0, 0, 3, macdM);
-    CopyBuffer(macdHandle, 1, 0, 3, macdS);
+    CopyBuffer(macdHandle, 0, 0, 240, macdM);
+    CopyBuffer(macdHandle, 1, 0, 240, macdS);
+    // Find the lowest and highest MACD values over the last x bars
+    double lowestMacdM = macdM[0];
+    double highestMacdM = macdM[0];
+    // string macdString = "Before > M:" + (int)macdM[0] + " S:" + (int)macdS[0];
+    for (int i = 1; i < 240; i++)
+    {
+        if (macdM[i] < lowestMacdM)
+            lowestMacdM = macdM[i];
+        if (macdM[i] > highestMacdM)
+            highestMacdM = macdM[i];
+    }
+    for (int i = 0; i < 240; i++)
+    {
+        macdM[i] = NormalizeValue(macdM[i], -100, 100, lowestMacdM, highestMacdM);
+        macdS[i] = NormalizeValue(macdS[i], -100, 100, lowestMacdM, highestMacdM);
+    }
+    Comment(" M:" + (int)macdM[0] + " S:" + (int)macdS[0]);
 
     int barsBack = macdConfirmation ? 1 : 0;
 
-    // ta.crossover(macd, signal)[macdBackCheck] and macd[macdBackCheck] < 0 and macd > signal and macd < 0 and close > open
     bool macdReversalBuy = macdM[barsBack] > macdS[barsBack] && macdM[barsBack + 1] < macdS[barsBack + 1] && macdM[barsBack] < 0 && macdS[barsBack] < 0;
     bool macdReversalSell = macdM[barsBack] < macdS[barsBack] && macdM[barsBack + 1] > macdS[barsBack + 1] && macdM[barsBack] > 0 && macdS[barsBack] > 0;
-
+    bool macdReversalH = MathAbs(macdM[0]) >= hLine && MathAbs(macdS[0]) >= hLine;
     bool emaBuy = ask > ma[0];
     bool emaSell = bid < ma[0];
 
-    if (posCount == 0 && ((emaBuy && macdReversalBuy) || (emaSell && macdReversalSell)))
+    if (posCount == 0 && macdReversalH && ((emaBuy && macdReversalBuy) || (emaSell && macdReversalSell)))
     {
         double atr[];
         ArraySetAsSeries(atr, true);
@@ -112,35 +154,5 @@ void OnTick()
             trade.Buy(lots);
         if (emaSell && macdReversalSell)
             trade.Sell(lots);
-    }
-
-    if (currentHour >= CloseHour && currentMinute >= CloseMinute && posCount > 0)
-    {
-        for (int i = PositionsTotal() - 1; i >= 0; i--)
-        {
-            ulong ticket = PositionGetTicket(i);
-            if (PositionSelectByTicket(ticket) && PositionGetString(POSITION_SYMBOL) == Symbol() && PositionGetInteger(POSITION_MAGIC) == Magic)
-            {
-                trade.PositionClose(ticket);
-            }
-        }
-    }
-
-    // check if trade is open for more than x days
-    for (int i = PositionsTotal() - 1; i >= 0; i--)
-    {
-        ulong ticket = PositionGetTicket(i);
-        if (PositionSelectByTicket(ticket) && PositionGetString(POSITION_SYMBOL) == Symbol() && PositionGetInteger(POSITION_MAGIC) == Magic)
-        {
-            datetime position_time = (datetime)PositionGetInteger(POSITION_TIME);
-            MqlDateTime openTime;
-            TimeToStruct(position_time, openTime);
-
-            int days = mdt.day - openTime.day;
-            if (days > 1)
-            {
-                trade.PositionClose(ticket);
-            }
-        }
     }
 }
