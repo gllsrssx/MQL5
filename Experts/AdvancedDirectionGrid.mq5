@@ -245,7 +245,7 @@ double lotsProfit[] = {1, 1, 2, 4, 8, 16, 32};
 double lotsLoss[] = {1, 1, 2, 3, 5, 8, 13, 21, 34};
 
 // arrays for sl and tp level
-double slProfit[] = {0.25};
+double slProfit[] = {0.5};
 double tpLoss[] = {0.5, 1.0, 3.5, 6.0, 12.0};
 int OnInit()
 {
