@@ -92,6 +92,22 @@ public:
         }
     }
 
+    void TrailWinningGrid()
+    {
+        double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+        double trailingDistance = GridPercentProfit * TrailingPercent / 100;
+
+        if (mode == GRID_PROFIT)
+        {
+            if ((dir == GRID_BUY && bid < last - last * trailingDistance / 100) ||
+                (dir == GRID_SELL && bid > last + last * trailingDistance / 100))
+            {
+                closeAllPositions();
+                mode = GRID_NEUTRAL;
+            }
+        }
+    }
+
 private:
     // private functions
     void execute()
@@ -99,13 +115,15 @@ private:
         CTrade trade;
         double lots = calculateLotSize();
 
+        trade.SetExpertMagicNumber(magicNumber);
+
         if (dir == GRID_BUY)
         {
-            trade.Buy(lots, _Symbol, 0, 0, 0, "", magicNumber);
+            trade.Buy(lots, _Symbol, 0, 0, 0, "");
         }
         else if (dir == GRID_SELL)
         {
-            trade.Sell(lots, _Symbol, 0, 0, 0, "", magicNumber);
+            trade.Sell(lots, _Symbol, 0, 0, 0, "");
         }
 
         // update last grid execution price
@@ -292,6 +310,7 @@ input double GridPercentLoss = 3.0;
 input bool IsChartComment = true;
 input int MagicNumberBuy = 123456;
 input int MagicNumberSell = 654321;
+input double TrailingPercent = 50.0; // New input for trailing percentage
 
 CGrid gridBuy(GRID_BUY, MagicNumberBuy);
 CGrid gridSell(GRID_SELL, MagicNumberSell);
@@ -319,6 +338,8 @@ void OnTick()
     gridSell.OnTickEvent();
     gridBuy.TrailLosingGrid();
     gridSell.TrailLosingGrid();
+    gridBuy.TrailWinningGrid();
+    gridSell.TrailWinningGrid();
 }
 
 void OnTradeTransaction(const MqlTradeTransaction &trans,
