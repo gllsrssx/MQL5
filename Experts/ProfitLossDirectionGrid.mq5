@@ -2,6 +2,26 @@
 #include <Trade\Trade.mqh>
 #include <arrays/arrayLong.mqh>
 
+// input variables
+input long MagicNumber = 123456;       // magic number for trades
+input double RiskPercent = 1.0;        // risk percentage per trade
+input double GridPercentInitial = 1.0; // initial grid distance in percentage
+input bool IsChartComment = true;      // show grid information on chart
+
+// enumerations for aggressiveness levels
+enum ENUM_AGGRESSIVENESS
+{
+    AGGRESSIVENESS_VERY_LOW = 0.1,
+    AGGRESSIVENESS_LOW = 0.2,
+    AGGRESSIVENESS_MEDIUM_LOW = 0.5,
+    AGGRESSIVENESS_MEDIUM = 1.0,
+    AGGRESSIVENESS_MEDIUM_HIGH = 2.0,
+    AGGRESSIVENESS_HIGH = 5.0,
+    AGGRESSIVENESS_VERY_HIGH = 10.0
+};
+input ENUM_AGGRESSIVENESS AggressivenessProfit = AGGRESSIVENESS_MEDIUM; // aggressiveness of winning grid
+input ENUM_AGGRESSIVENESS AggressivenessLoss = AGGRESSIVENESS_MEDIUM;   // aggressiveness of losing grid
+
 // enumerations
 enum ENUM_GRID_DIRECTION
 {
@@ -21,15 +41,20 @@ class CGrid : public CObject
 {
 private:
     // private variables
-    ENUM_GRID_DIRECTION dir; // grid direction
-    ENUM_GRID_MODE mode;     // grid mode
-    CArrayLong tickets;      // array to store grid positions
-    double last;             // last grid execution price
-    int magicNumber;         // unique magic number for trades
+    ENUM_GRID_DIRECTION direction; // grid direction
+    ENUM_GRID_MODE mode;           // grid mode
+    CArrayLong tickets;            // array to store grid positions
+    int magic;                     // unique magic number for trades
+    double lastGridPrice;          // last grid execution price
+    double initialGridDistance;    // initial grid distance
+    double gridDistance;           // current grid distance
+    double lotSizeInitial;         // Initial lot size
+    double lotSizeCurrent;         // current lot size
+    double aggressiveness;         // aggressiveness of increases
 
 public:
     // constructor
-    CGrid(ENUM_GRID_DIRECTION direction, int magic) : dir(direction), magicNumber(magic)
+    CGrid(ENUM_GRID_DIRECTION direction, int magic, double initialDistance, double initialLot, double aggress) : direction(direction), magic(magic), initialGridDistance(initialDistance), gridDistance(initialDistance), lotSizeInitial(initialLot), lotSizeCurrent(initialLot), aggressiveness(aggress)
     {
         mode = GRID_NEUTRAL;
     };
@@ -41,7 +66,7 @@ public:
     string ToString()
     {
         string txt;
-        StringConcatenate(txt, EnumToString(dir), " ", EnumToString(mode), " > Tickets: ", tickets.Total(), "  Last: ", DoubleToString(last, _Digits));
+        StringConcatenate(txt, EnumToString(direction), " ", EnumToString(mode), " > Tickets: ", tickets.Total(), "  Last: ", DoubleToString(lastGridPrice, Digits()));
         return txt;
     }
 
@@ -84,9 +109,10 @@ public:
         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
         if (mode == GRID_LOSS)
         {
-            if ((dir == GRID_BUY && bid > last) || (dir == GRID_SELL && bid < last))
+            // if losing grid goes in profit close all positions
+            if ((dir == GRID_BUY && bid > last + initialGridDistance) || (dir == GRID_SELL && bid < last - initialGridDistance))
             {
-                closeAllPositions();
+                closeAllPositions(); // only close positions of the losing grid
                 mode = GRID_NEUTRAL;
             }
         }
@@ -95,12 +121,12 @@ public:
     void TrailWinningGrid()
     {
         double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
-        double trailingDistance = GridPercentProfit * TrailingPercent / 100;
+        double trailingDistance = initialGridDistance * TrailingPercent / 100;
 
         if (mode == GRID_PROFIT)
         {
-            if ((dir == GRID_BUY && bid < last - last * trailingDistance / 100) ||
-                (dir == GRID_SELL && bid > last + last * trailingDistance / 100))
+            if ((dir == GRID_BUY && bid < last - trailingDistance) ||
+                (dir == GRID_SELL && bid > last + trailingDistance))
             {
                 closeAllPositions();
                 mode = GRID_NEUTRAL;
@@ -113,17 +139,16 @@ private:
     void execute()
     {
         CTrade trade;
-        double lots = calculateLotSize();
-
-        trade.SetExpertMagicNumber(magicNumber);
 
         if (dir == GRID_BUY)
         {
-            trade.Buy(lots, _Symbol, 0, 0, 0, "");
+            trade.SetExpertMagicNumber(1 + magicNumber);
+            trade.Buy(lotSize);
         }
         else if (dir == GRID_SELL)
         {
-            trade.Sell(lots, _Symbol, 0, 0, 0, "");
+            trade.SetExpertMagicNumber(0 + magicNumber);
+            trade.Sell(lotSize);
         }
 
         // update last grid execution price
@@ -137,36 +162,25 @@ private:
         }
     }
 
-    double calculateLotSize()
-    {
-        double lots = Lots;
-        if (mode == GRID_PROFIT)
-        {
-            lots *= lotsProfit[MathMin(ArraySize(lotsProfit) - 1, tickets.Total())];
-        }
-        else if (mode == GRID_LOSS)
-        {
-            lots *= lotsLoss[MathMin(ArraySize(lotsLoss) - 1, tickets.Total())];
-        }
-        return lots;
-    }
-
     void handleBuyGrid(double bid)
     {
         if (mode == GRID_NEUTRAL || mode == GRID_PROFIT)
         {
-            if (bid > last + last * GridPercentProfit / 100)
+            if (bid > last + gridDistance)
             {
                 execute();
                 mode = GRID_PROFIT;
+                lotSize *= 1 + aggressiveness / 100;
             }
         }
         if (mode == GRID_NEUTRAL || mode == GRID_LOSS)
         {
-            if (bid < last - last * GridPercentLoss / 100)
+            if (bid < last - gridDistance)
             {
                 execute();
                 mode = GRID_LOSS;
+                gridDistance *= 1 + aggressiveness / 100;
+                lotSize *= 1 + aggressiveness / 100;
             }
         }
     }
@@ -175,18 +189,21 @@ private:
     {
         if (mode == GRID_NEUTRAL || mode == GRID_PROFIT)
         {
-            if (bid < last - last * GridPercentProfit / 100)
+            if (bid < last - gridDistance)
             {
                 execute();
                 mode = GRID_PROFIT;
+                lotSize *= 1 + aggressiveness / 100;
             }
         }
         if (mode == GRID_NEUTRAL || mode == GRID_LOSS)
         {
-            if (bid > last + last * GridPercentLoss / 100)
+            if (bid > last + gridDistance)
             {
                 execute();
                 mode = GRID_LOSS;
+                gridDistance *= 1 + aggressiveness / 100;
+                lotSize *= 1 + aggressiveness / 100;
             }
         }
     }
@@ -303,25 +320,8 @@ private:
     }
 };
 
-// input variables
-input double Lots = 0.1;
-input double GridPercentProfit = 1.0;
-input double GridPercentLoss = 3.0;
-input bool IsChartComment = true;
-input int MagicNumberBuy = 123456;
-input int MagicNumberSell = 654321;
-input double TrailingPercent = 50.0; // New input for trailing percentage
-
-CGrid gridBuy(GRID_BUY, MagicNumberBuy);
-CGrid gridSell(GRID_SELL, MagicNumberSell);
-
-// arrays for lot scaling
-double lotsProfit[] = {1, 1, 2, 4, 8, 16, 32};
-double lotsLoss[] = {1, 1, 2, 3, 5, 8, 13, 21, 34};
-
-// arrays for sl and tp level
-double slProfit[] = {0.5};
-double tpLoss[] = {0.5, 1.0, 3.5, 6.0, 12.0};
+CGrid gridBuy(GRID_BUY, MagicNumberBuy, GridPercentProfit, Lots, AggressivenessProfit);
+CGrid gridSell(GRID_SELL, MagicNumberSell, GridPercentLoss, Lots, AggressivenessLoss);
 
 int OnInit()
 {
