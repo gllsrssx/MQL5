@@ -55,7 +55,7 @@ void OnTick()
         TrailLong();
     }
 
-    if (shortCount > 1 && ask < lastPriceShort - LossGridDistance * _Point)
+    if (shortCount > 1 && ask < startPriceShort && ask < lastPriceShort - WinGridDistance * _Point)
     {
         TrailShort();
     }
