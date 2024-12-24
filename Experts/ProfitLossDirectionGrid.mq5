@@ -12,6 +12,7 @@ input double WinGridDistance = 100;
 input double LossGridDistance = 300;
 input double TrailDistance = 50;
 input double winMoney = 10;
+input bool IsChartComment = true;
 
 double lastPriceLong;
 double lastPriceShort;
@@ -62,12 +63,12 @@ void OnTick()
 
     if (longCount > 0)
     {
-        if (bid > lastPriceLong + WinGridDistance * _Point)
+        if (bid > lastPriceLong + WinGridDistance * _Point && bid > startPriceLong)
         {
             trade.Buy(0.1);
             lastPriceLong = bid;
         }
-        if (bid < lastPriceLong - LossGridDistance * _Point)
+        if (bid < lastPriceLong - LossGridDistance * _Point && bid < startPriceLong)
         {
             trade.Buy(0.1 * longCount * 3);
             lastPriceLong = bid;
@@ -76,12 +77,12 @@ void OnTick()
 
     if (shortCount > 0)
     {
-        if (ask < lastPriceShort - WinGridDistance * _Point)
+        if (ask < lastPriceShort - WinGridDistance * _Point && ask < startPriceShort)
         {
             trade.Sell(0.1);
             lastPriceShort = ask;
         }
-        if (ask > lastPriceShort + LossGridDistance * _Point)
+        if (ask > lastPriceShort + LossGridDistance * _Point && ask > startPriceShort)
         {
             trade.Sell(0.1 * shortCount * 3);
             lastPriceShort = ask;
@@ -98,7 +99,8 @@ void OnTick()
         CloseIfInProfitShort();
     }
 
-    Comment("WM", winMoney, " \n Long Count: ", longCount, " > Profit: ", profitLong, " \n Short Count: ", shortCount, " > Profit: ", profitShort);
+    if (IsChartComment)
+        Comment("WM", winMoney, " \n Long Count: ", longCount, " > Profit: ", profitLong, " \n Short Count: ", shortCount, " > Profit: ", profitShort);
 }
 
 void CloseIfInProfitLong()
