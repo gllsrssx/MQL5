@@ -13,6 +13,10 @@ input double LossGridDistance = 300;
 input double TrailDistance = 50;
 input double winMoney = 10;
 input bool IsChartComment = true;
+input int StartHour = 0;
+input int startMinute = 16;
+input int StopHour = 22;
+input int StopMinute = 53;
 
 double lastPriceLong;
 double lastPriceShort;
@@ -23,6 +27,15 @@ double profitShort;
 
 int OnInit()
 {
+    double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
+    double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
+    lastPriceLong = bid;
+    lastPriceShort = ask;
+    startPriceLong = bid;
+    startPriceShort = ask;
+    profitLong = 0;
+    profitShort = 0;
+
     return (INIT_SUCCEEDED);
 }
 
@@ -32,6 +45,14 @@ void OnDeinit(const int reason)
 
 void OnTick()
 {
+    MqlDateTime mdt;
+    TimeCurrent(mdt);
+    int hour = mdt.hour;
+    int minute = mdt.min;
+
+    if (hour < StartHour || hour > StopHour || (hour == StartHour && minute < startMinute) || (hour == StopHour && minute > StopMinute))
+        return;
+
     double bid = SymbolInfoDouble(_Symbol, SYMBOL_BID);
     double ask = SymbolInfoDouble(_Symbol, SYMBOL_ASK);
     int longCount = PositionCountLong();
@@ -42,6 +63,7 @@ void OnTick()
         trade.Buy(0.1);
         lastPriceLong = bid;
         startPriceLong = bid;
+        return;
     }
 
     if (shortCount == 0)
@@ -49,6 +71,7 @@ void OnTick()
         trade.Sell(0.1);
         lastPriceShort = ask;
         startPriceShort = ask;
+        return;
     }
 
     if (longCount > 1 && bid > startPriceLong && bid > lastPriceLong + WinGridDistance * _Point)
@@ -100,7 +123,38 @@ void OnTick()
     }
 
     if (IsChartComment)
-        Comment("WM", winMoney, " \n Long Count: ", longCount, " > Profit: ", profitLong, " \n Short Count: ", shortCount, " > Profit: ", profitShort);
+        Comment("WM", winMoney, " \n Long Count: ", longCount, " > Profit: ", profitLong, " \n Short Count: ", shortCount, " > Profit: ", profitShort + " \n Last Price Long: ", lastPriceLong, " \n Last Price Short: ", lastPriceShort, " \n Start Price Long: ", startPriceLong, " \n Start Price Short: ", startPriceShort);
+
+    if (longCount == 1)
+        SetStartPriceLong();
+    if (shortCount == 1)
+        SetStartPriceShort();
+}
+
+void SetStartPriceLong()
+{
+    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+            continue;
+        startPriceLong = PositionGetDouble(POSITION_PRICE_OPEN);
+    }
+}
+
+void SetStartPriceShort()
+{
+    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+            continue;
+        startPriceShort = PositionGetDouble(POSITION_PRICE_OPEN);
+    }
 }
 
 void CloseIfInProfitLong()
