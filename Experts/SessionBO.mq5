@@ -620,7 +620,6 @@ void BreakEven(RANGE_STRUCT &range)
         {
             Print("Failed to select position by ticket");
             continue;
-            ;
         }
         long magic;
         if (!PositionGetInteger(POSITION_MAGIC, magic))
