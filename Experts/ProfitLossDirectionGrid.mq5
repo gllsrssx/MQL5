@@ -49,7 +49,8 @@ double startPriceShort;
 double profitLong;
 double profitShort;
 double distance;
-
+double lotSizeBuy;
+double lotSizeSell;
 string pair = Symbol();
 
 int OnInit()
@@ -103,12 +104,12 @@ void OnTick()
     double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
     int longCount = PositionCountLong();
     int shortCount = PositionCountShort();
-    double lotSize = Volume();
     winMoney = CalculateWinMoney();
 
     if (longCount == 0)
     {
-        trade.Buy(lotSize);
+        lotSizeBuy = Volume();
+        trade.Buy(lotSizeBuy);
         lastPriceLong = ask;
         startPriceLong = ask;
         return;
@@ -116,7 +117,8 @@ void OnTick()
 
     if (shortCount == 0)
     {
-        trade.Sell(lotSize);
+        lotSizeSell = Volume();
+        trade.Sell(lotSizeSell);
         lastPriceShort = bid;
         startPriceShort = bid;
         return;
@@ -136,12 +138,12 @@ void OnTick()
     {
         if (ask > lastPriceLong + WinGridDistance && ask > startPriceLong)
         {
-            trade.Buy(lotSize);
+            trade.Buy(lotSizeBuy);
             lastPriceLong = ask;
         }
         if (ask < lastPriceLong - LossGridDistance && ask < startPriceLong)
         {
-            trade.Buy(lotSize * longCount * Multiplier);
+            trade.Buy(lotSizeBuy * longCount * Multiplier);
             lastPriceLong = ask;
         }
     }
@@ -150,12 +152,12 @@ void OnTick()
     {
         if (bid < lastPriceShort - WinGridDistance && bid < startPriceShort)
         {
-            trade.Sell(lotSize);
+            trade.Sell(lotSizeSell);
             lastPriceShort = bid;
         }
         if (bid > lastPriceShort + LossGridDistance && bid > startPriceShort)
         {
-            trade.Sell(lotSize * shortCount * Multiplier);
+            trade.Sell(lotSizeSell * shortCount * Multiplier);
             lastPriceShort = bid;
         }
     }
