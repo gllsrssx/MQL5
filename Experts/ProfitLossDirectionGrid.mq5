@@ -14,7 +14,7 @@ enum ENUM_RISK_VALUE
     RISK_VALUE_LOT,
     RISK_VALUE_PERCENT
 };
-input ENUM_RISK_VALUE RiskValue = RISK_VALUE_LOT; // Risk Value
+input ENUM_RISK_VALUE RiskValue = RISK_VALUE_PERCENT; // Risk Value
 enum ENUM_RISK_TYPE
 {
     RISK_TYPE_BALANCE,
@@ -23,25 +23,24 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_STATIC; // Risk Type
 input group "Grid";
-int Period;                                      // Period
-input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_H1;  // Win Time Frame
-input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
-input double TrailPercent = 0.25;                // Trail Percent
-
+input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_M10; // Win Time Frame
+input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_H1; // Loss Time Frame
+input double TrailPercent = 0.5;                 // Trail Percent
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
 input group "Time";
 input int StartHour = 0;   // Start Hour
 input int startMinute = 6; // Start Minute
-input int StopHour = 22;   // Stop Hour
+input int StopHour = 23;   // Stop Hour
 input int StopMinute = 54; // Stop Minute
 
+int Period;              // Period
 double WinGridDistance;  // Win Grid Distance
 double LossGridDistance; // Loss Grid Distance
 double TrailDistance;    // Trail Distance
-int Multiplier = 1;      // Multiplier
 double winMoney;         // Win Money
+int Multiplier = 1;      // Multiplier
 
 double lastPriceLong;
 double lastPriceShort;
@@ -383,6 +382,7 @@ double Volume()
 
     return lots;
 }
+
 double CalculateWinMoney()
 {
     double moneyLotStep = distance / tickSize * tickValue * lotStep;
