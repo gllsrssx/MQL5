@@ -1,7 +1,7 @@
 
 #property copyright "Copyright 2024, GllsRssx Ltd."
 #property link "https://www.rssx.eu"
-#property version "2.0"
+#property version "3.0"
 #property description "grid."
 
 #include <Trade\Trade.mqh>
@@ -23,9 +23,10 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_STATIC; // Risk Type
 input group "Grid";
-input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_M10; // Win Time Frame
-input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_H1; // Loss Time Frame
-input double TrailPercent = 0.5;                 // Trail Percent
+input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_M10;  // Win Time Frame
+input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_M10; // Loss Time Frame
+input double TrailPercent = 0.5;                  // Trail Percent
+input bool adaptiveLossGrid = true;               // Adaptive Loss Grid
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -65,6 +66,8 @@ int OnInit()
     double bid = SymbolInfoDouble(pair, SYMBOL_BID);
     double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
     WinGridDistance = WinAtr();
+    if (ask - bid >= WinGridDistance)
+        WinGridDistance = WinGridDistance + (ask - bid);
     LossGridDistance = LossAtr();
     winMoney = CalculateWinMoney();
     lastPriceLong = ask;
@@ -93,17 +96,16 @@ void OnTick()
     if (hour < StartHour || hour > StopHour || (hour == StartHour && minute < startMinute) || (hour == StopHour && minute > StopMinute))
         return;
 
+    double bid = SymbolInfoDouble(pair, SYMBOL_BID);
+    double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
+    int longCount = PositionCountLong();
+    int shortCount = PositionCountShort();
     WinGridDistance = WinAtr();
     LossGridDistance = LossAtr();
     TrailDistance = WinGridDistance * TrailPercent;
     distance = WinGridDistance;
     if (WinGridDistance == 0 || LossGridDistance == 0)
         return;
-
-    double bid = SymbolInfoDouble(pair, SYMBOL_BID);
-    double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
-    int longCount = PositionCountLong();
-    int shortCount = PositionCountShort();
     winMoney = CalculateWinMoney();
 
     if (longCount == 0)
@@ -141,11 +143,20 @@ void OnTick()
             trade.Buy(lotSizeBuy);
             lastPriceLong = ask;
         }
+        if (adaptiveLossGrid && longCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 1;
+            LossGridDistance = LossGridDistance * longCount;
+            Multiplier = longCount;
+        }
         if (ask < lastPriceLong - LossGridDistance && ask < startPriceLong)
         {
             trade.Buy(lotSizeBuy * longCount * Multiplier);
             lastPriceLong = ask;
         }
+        LossGridDistance = LossAtr();
+        Multiplier = 1;
     }
 
     if (shortCount > 0)
@@ -155,11 +166,20 @@ void OnTick()
             trade.Sell(lotSizeSell);
             lastPriceShort = bid;
         }
+        if (adaptiveLossGrid && shortCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 1;
+            LossGridDistance = LossGridDistance * shortCount;
+            Multiplier = shortCount;
+        }
         if (bid > lastPriceShort + LossGridDistance && bid > startPriceShort)
         {
             trade.Sell(lotSizeSell * shortCount * Multiplier);
             lastPriceShort = bid;
         }
+        LossGridDistance = LossAtr();
+        Multiplier = 1;
     }
 
     if (longCount > 1 && bid < startPriceLong)
