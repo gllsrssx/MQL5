@@ -66,8 +66,6 @@ int OnInit()
     double bid = SymbolInfoDouble(pair, SYMBOL_BID);
     double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
     WinGridDistance = WinAtr();
-    if (ask - bid >= WinGridDistance)
-        WinGridDistance = WinGridDistance + (ask - bid);
     LossGridDistance = LossAtr();
     winMoney = CalculateWinMoney();
     lastPriceLong = ask;
@@ -101,7 +99,11 @@ void OnTick()
     int longCount = PositionCountLong();
     int shortCount = PositionCountShort();
     WinGridDistance = WinAtr();
+    if (ask - bid >= WinGridDistance)
+        WinGridDistance = WinGridDistance + (ask - bid);
     LossGridDistance = LossAtr();
+    if (ask - bid >= LossGridDistance)
+        WinGridDistance = LossGridDistance + (ask - bid);
     TrailDistance = WinGridDistance * TrailPercent;
     distance = WinGridDistance;
     if (WinGridDistance == 0 || LossGridDistance == 0)
