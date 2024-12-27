@@ -103,7 +103,7 @@ void OnTick()
         WinGridDistance = WinGridDistance + (ask - bid);
     LossGridDistance = LossAtr();
     if (ask - bid >= LossGridDistance)
-        WinGridDistance = LossGridDistance + (ask - bid);
+        LossGridDistance = LossGridDistance + (ask - bid);
     TrailDistance = WinGridDistance * TrailPercent;
     distance = WinGridDistance;
     if (WinGridDistance == 0 || LossGridDistance == 0)
