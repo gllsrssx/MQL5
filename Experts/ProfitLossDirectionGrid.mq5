@@ -23,11 +23,12 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_STATIC; // Risk Type
 input group "Grid";
-input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_M10;  // Win Time Frame
-input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_M10; // Loss Time Frame
-input double TrailPercent = 0.5;                  // Trail Percent
-input bool adaptiveLossGrid = false;              // Adaptive Loss Grid
-input bool fasterLossGrid = true;                 // Faster Loss Grid
+input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
+input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
+input double TrailPercent = 0.5;                 // Trail Percent
+input bool adaptiveLossGrid = false;             // Adaptive Loss Grid
+input bool fasterLossGrid = false;               // Faster Loss Grid
+input bool multiplierWinLot = false;             // Multiplier Win Lot
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -137,7 +138,7 @@ void OnTick()
     {
         if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
         {
-            trade.Buy(lotSizeBuy);
+            trade.Buy(multiplierWinLot && longCount > 1 ? lotSizeBuy * Multiplier : lotSizeBuy);
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -165,7 +166,7 @@ void OnTick()
     {
         if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
         {
-            trade.Sell(lotSizeSell);
+            trade.Sell(multiplierWinLot && shortCount > 1 ? lotSizeSell * Multiplier : lotSizeSell);
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
