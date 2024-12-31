@@ -21,7 +21,7 @@ enum ENUM_RISK_TYPE
     RISK_TYPE_EQUITY,
     RISK_TYPE_STATIC
 };
-input ENUM_RISK_TYPE RiskType = RISK_TYPE_STATIC; // Risk Type
+input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
 input group "Grid";
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
@@ -193,8 +193,8 @@ void OnTick()
 
     if (IsChartComment)
         Comment("Win Money: ", NormalizeDouble(winMoney, 2), " | Period: ", Period,
-                " | win distance: ", MathRound(WinGridDistance * Point()),
-                " | loss distance: ", MathRound(LossGridDistance * Point()),
+                " | win distance: ", NormalizeDouble(WinGridDistance, Digits()),
+                " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
                 "\nLong: Count: ", longCount, " > Profit: ", NormalizeDouble(profitLong, 2),
                 " | Last Price: ", NormalizeDouble(lastPriceLong, Period()),
                 " | Start Price: ", NormalizeDouble(startPriceLong, Period()),
