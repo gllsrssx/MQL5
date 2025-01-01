@@ -28,7 +28,7 @@ input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
 input double TrailPercent = 0.5;                 // Trail Percent
 input bool adaptiveLossGrid = false;             // Adaptive Loss Grid
 input bool fasterLossGrid = false;               // Faster Loss Grid
-input bool multiplierWinLot = false;             // Multiplier Win Lot
+input bool multiplierWinLot = true;              // Multiplier Win Lot
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -45,6 +45,7 @@ double TrailDistance;    // Trail Distance
 double winMoney;         // Win Money
 int Multiplier = 2;      // Multiplier
 
+double totalLotsTraded = 0;
 double last;
 double lastPriceLong;
 double lastPriceShort;
@@ -106,6 +107,7 @@ void OnTick()
     {
         lotSizeBuy = Volume();
         trade.Buy(lotSizeBuy);
+        totalLotsTraded += lotSizeBuy;
         lastPriceLong = last;
         startPriceLong = last;
         return;
@@ -114,6 +116,7 @@ void OnTick()
     {
         lotSizeSell = Volume();
         trade.Sell(lotSizeSell);
+        totalLotsTraded += lotSizeSell;
         lastPriceShort = last;
         startPriceShort = last;
         return;
@@ -139,6 +142,7 @@ void OnTick()
         if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
         {
             trade.Buy(multiplierWinLot && longCount > 1 ? lotSizeBuy * Multiplier : lotSizeBuy);
+            totalLotsTraded += lotSizeBuy;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -154,6 +158,7 @@ void OnTick()
             if (fasterLossGrid)
                 lotSizeAdaptive = lotSizeBuy * longCount;
             trade.Buy(lotSizeAdaptive);
+            totalLotsTraded += lotSizeBuy;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -167,6 +172,7 @@ void OnTick()
         if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
         {
             trade.Sell(multiplierWinLot && shortCount > 1 ? lotSizeSell * Multiplier : lotSizeSell);
+            totalLotsTraded += lotSizeSell;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
@@ -182,6 +188,7 @@ void OnTick()
             if (fasterLossGrid)
                 lotSizeAdaptive = lotSizeSell * shortCount;
             trade.Sell(lotSizeAdaptive);
+            totalLotsTraded += lotSizeSell;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
@@ -192,7 +199,7 @@ void OnTick()
     }
 
     if (IsChartComment)
-        Comment("Win Money: ", NormalizeDouble(winMoney, 2), " | Period: ", Period,
+        Comment("Win Money: ", NormalizeDouble(winMoney, 2), " | Period: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()), " | lots traded: ", totalLotsTraded,
                 " | win distance: ", NormalizeDouble(WinGridDistance, Digits()),
                 " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
                 "\nLong: Count: ", longCount, " > Profit: ", NormalizeDouble(profitLong, 2),
