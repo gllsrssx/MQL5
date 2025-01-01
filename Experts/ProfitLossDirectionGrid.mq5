@@ -199,8 +199,9 @@ void OnTick()
     }
 
     if (IsChartComment)
-        Comment("Win Money: ", NormalizeDouble(winMoney, 2), " | Period: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()), " | lots traded: ", totalLotsTraded,
-                " | win distance: ", NormalizeDouble(WinGridDistance, Digits()),
+        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
+                "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
+                "\nwin distance: ", NormalizeDouble(WinGridDistance, Digits()),
                 " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
                 "\nLong: Count: ", longCount, " > Profit: ", NormalizeDouble(profitLong, 2),
                 " | Last Price: ", NormalizeDouble(lastPriceLong, Period()),
