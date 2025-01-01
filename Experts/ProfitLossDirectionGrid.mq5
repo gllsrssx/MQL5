@@ -28,7 +28,8 @@ input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
 input double TrailPercent = 0.5;                 // Trail Percent
 input bool adaptiveLossGrid = false;             // Adaptive Loss Grid
 input bool fasterLossGrid = false;               // Faster Loss Grid
-input bool multiplierWinLot = true;              // Multiplier Win Lot
+input bool multiplierWinLot = false;             // Multiplier Win Lot
+input bool multiplierLossLot = true;             // Multiplier Loss Lot
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -44,9 +45,10 @@ double LossGridDistance; // Loss Grid Distance
 double TrailDistance;    // Trail Distance
 double winMoney;         // Win Money
 int Multiplier = 2;      // Multiplier
-
 double totalLotsTraded = 0;
 double last;
+int longCount;
+int shortCount;
 double lastPriceLong;
 double lastPriceShort;
 double startPriceLong;
@@ -90,17 +92,12 @@ void OnTick()
     double ask = SymbolInfoDouble(pair, SYMBOL_ASK);
     last = (bid + ask) / 2;
     double spread = ask - bid;
-    int longCount = PositionCountLong();
-    int shortCount = PositionCountShort();
+    longCount = PositionCountLong();
+    shortCount = PositionCountShort();
     WinGridDistance = WinAtr() + spread;
     LossGridDistance = LossAtr() + spread;
     TrailDistance = WinGridDistance * TrailPercent;
     distance = WinGridDistance;
-    if (WinGridDistance == 0 || LossGridDistance == 0)
-    {
-        Comment(WinGridDistance, " | ", LossGridDistance);
-        return;
-    }
     winMoney = CalculateWinMoney();
 
     if (longCount == 0)
@@ -127,78 +124,21 @@ void OnTick()
     if (shortCount == 1)
         SetStartPriceShort();
 
+    if (longCount > 0)
+    {
+        LongGridExecute();
+        TrailLong();
+    }
+    if (shortCount > 0)
+    {
+        ShortGridExecute();
+        TrailShort();
+    }
+
     if (longCount > 1 && last < startPriceLong && ClosedIfInProfitLong())
         return;
     if (shortCount > 1 && last > startPriceShort && ClosedIfInProfitShort())
         return;
-
-    if (longCount > 0 && last > startPriceLong && last > lastPriceLong + WinGridDistance)
-        TrailLong();
-    if (shortCount > 0 && last < startPriceShort && last < lastPriceShort - WinGridDistance)
-        TrailShort();
-
-    if (longCount > 0)
-    {
-        if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
-        {
-            double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * Multiplier : lotSizeBuy;
-            trade.Buy(lotSizeAdaptive);
-            totalLotsTraded += lotSizeAdaptive;
-            lastPriceLong = last;
-        }
-        if (adaptiveLossGrid && longCount > 1)
-        {
-            LossGridDistance = LossAtr();
-            Multiplier = 2;
-            LossGridDistance = LossGridDistance * longCount;
-            Multiplier = longCount;
-        }
-        if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
-        {
-            double lotSizeAdaptive = lotSizeBuy * longCount * Multiplier;
-            if (fasterLossGrid)
-                lotSizeAdaptive = lotSizeBuy * longCount;
-            trade.Buy(lotSizeAdaptive);
-            totalLotsTraded += lotSizeAdaptive;
-            lastPriceLong = last;
-        }
-        if (adaptiveLossGrid && longCount > 1)
-        {
-            LossGridDistance = LossAtr();
-            Multiplier = 2;
-        }
-    }
-    if (shortCount > 0)
-    {
-        if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
-        {
-            double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * Multiplier : lotSizeSell;
-            trade.Sell(lotSizeAdaptive);
-            totalLotsTraded += lotSizeAdaptive;
-            lastPriceShort = last;
-        }
-        if (adaptiveLossGrid && shortCount > 1)
-        {
-            LossGridDistance = LossAtr();
-            Multiplier = 2;
-            LossGridDistance = LossGridDistance * shortCount;
-            Multiplier = shortCount;
-        }
-        if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
-        {
-            double lotSizeAdaptive = lotSizeSell * shortCount * Multiplier;
-            if (fasterLossGrid)
-                lotSizeAdaptive = lotSizeSell * shortCount;
-            trade.Sell(lotSizeAdaptive);
-            totalLotsTraded += lotSizeAdaptive;
-            lastPriceShort = last;
-        }
-        if (adaptiveLossGrid && shortCount > 1)
-        {
-            LossGridDistance = LossAtr();
-            Multiplier = 2;
-        }
-    }
 
     if (IsChartComment)
         Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
@@ -211,6 +151,80 @@ void OnTick()
                 "\nShort: Count: ", shortCount, " > Profit: ", NormalizeDouble(profitShort, 2),
                 " | Last Price: ", NormalizeDouble(lastPriceShort, Period()),
                 " | Start Price: ", NormalizeDouble(startPriceShort, Period()));
+}
+
+void LongGridExecute()
+{
+    if (longCount > 0)
+    {
+        if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
+        {
+            double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * longCount : lotSizeBuy;
+            trade.Buy(lotSizeAdaptive);
+            TrailLong();
+            totalLotsTraded += lotSizeAdaptive;
+            lastPriceLong = last;
+        }
+        if (adaptiveLossGrid && longCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 2;
+            LossGridDistance = LossGridDistance * longCount;
+            Multiplier = longCount;
+        }
+        if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
+        {
+            double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
+            if (fasterLossGrid)
+                lotSizeAdaptive = lotSizeBuy * longCount;
+            trade.Buy(lotSizeAdaptive);
+            TrailLong();
+            totalLotsTraded += lotSizeAdaptive;
+            lastPriceLong = last;
+        }
+        if (adaptiveLossGrid && longCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 2;
+        }
+    }
+}
+
+void ShortGridExecute()
+{
+    if (shortCount > 0)
+    {
+        if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
+        {
+            double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * shortCount : lotSizeSell;
+            trade.Sell(lotSizeAdaptive);
+            TrailShort();
+            totalLotsTraded += lotSizeAdaptive;
+            lastPriceShort = last;
+        }
+        if (adaptiveLossGrid && shortCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 2;
+            LossGridDistance = LossGridDistance * shortCount;
+            Multiplier = shortCount;
+        }
+        if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
+        {
+            double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
+            if (fasterLossGrid)
+                lotSizeAdaptive = lotSizeSell * shortCount;
+            trade.Sell(lotSizeAdaptive);
+            TrailShort();
+            totalLotsTraded += lotSizeAdaptive;
+            lastPriceShort = last;
+        }
+        if (adaptiveLossGrid && shortCount > 1)
+        {
+            LossGridDistance = LossAtr();
+            Multiplier = 2;
+        }
+    }
 }
 
 double WinAtr()
@@ -321,35 +335,41 @@ bool ClosedIfInProfitShort()
 
 void TrailLong()
 {
-    double stop = NormalizeDouble(last - TrailDistance, _Digits);
-    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    if (longCount > 0 && last > startPriceLong && last > lastPriceLong + WinGridDistance)
     {
-        ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-            continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
-            continue;
-        if (PositionGetDouble(POSITION_SL) == stop)
-            continue;
+        double stop = NormalizeDouble(last - TrailDistance, _Digits);
+        for (int i = PositionsTotal() - 1; i >= 0; i--)
+        {
+            ulong ticket = PositionGetTicket(i);
+            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+                continue;
+            if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+                continue;
+            if (PositionGetDouble(POSITION_SL) == stop)
+                continue;
 
-        trade.PositionModify(ticket, stop, 0);
+            trade.PositionModify(ticket, stop, 0);
+        }
     }
 }
 
 void TrailShort()
 {
-    double stop = NormalizeDouble(last + TrailDistance, _Digits);
-    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    if (shortCount > 0 && last < startPriceShort && last < lastPriceShort - WinGridDistance)
     {
-        ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-            continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
-            continue;
-        if (PositionGetDouble(POSITION_SL) == stop)
-            continue;
+        double stop = NormalizeDouble(last + TrailDistance, _Digits);
+        for (int i = PositionsTotal() - 1; i >= 0; i--)
+        {
+            ulong ticket = PositionGetTicket(i);
+            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+                continue;
+            if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+                continue;
+            if (PositionGetDouble(POSITION_SL) == stop)
+                continue;
 
-        trade.PositionModify(ticket, stop, 0);
+            trade.PositionModify(ticket, stop, 0);
+        }
     }
 }
 
