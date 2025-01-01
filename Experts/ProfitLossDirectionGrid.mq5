@@ -141,8 +141,9 @@ void OnTick()
     {
         if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
         {
-            trade.Buy(multiplierWinLot && longCount > 1 ? lotSizeBuy * Multiplier : lotSizeBuy);
-            totalLotsTraded += lotSizeBuy;
+            double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * Multiplier : lotSizeBuy;
+            trade.Buy(lotSizeAdaptive);
+            totalLotsTraded += lotSizeAdaptive;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -158,7 +159,7 @@ void OnTick()
             if (fasterLossGrid)
                 lotSizeAdaptive = lotSizeBuy * longCount;
             trade.Buy(lotSizeAdaptive);
-            totalLotsTraded += lotSizeBuy;
+            totalLotsTraded += lotSizeAdaptive;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -171,8 +172,9 @@ void OnTick()
     {
         if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
         {
-            trade.Sell(multiplierWinLot && shortCount > 1 ? lotSizeSell * Multiplier : lotSizeSell);
-            totalLotsTraded += lotSizeSell;
+            double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * Multiplier : lotSizeSell;
+            trade.Sell(lotSizeAdaptive);
+            totalLotsTraded += lotSizeAdaptive;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
@@ -188,7 +190,7 @@ void OnTick()
             if (fasterLossGrid)
                 lotSizeAdaptive = lotSizeSell * shortCount;
             trade.Sell(lotSizeAdaptive);
-            totalLotsTraded += lotSizeSell;
+            totalLotsTraded += lotSizeAdaptive;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
