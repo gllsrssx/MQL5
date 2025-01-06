@@ -1,7 +1,7 @@
 
 #property copyright "Copyright 2024, GllsRssx Ltd."
-#property link "https://www.rssx.eu"
-#property version "5.0"
+#property link "https://www.rssx.be"
+#property version "4.1"
 #property description "grid."
 
 #include <Trade\Trade.mqh>
@@ -23,14 +23,16 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
 input group "Grid";
-input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_M10; // Win Time Frame
-input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_H4; // Loss Time Frame
-input double TrailPercent = 0.5;                 // Trail Percent
+input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
+input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
+input double TrailPercent = 0.25;                // Trail Percent
 input bool keepLastWinOpen = false;              // Keep Last Win Open
 input bool multiplierWinLot = false;             // Multiplier Win Lot
 input bool adaptiveLossGrid = true;              // Adaptive Loss Grid
 input bool multiplierLossLot = false;            // Multiplier Loss Lot
-input int Multiplier = 1;                        // Multiplier Loss Lot start
+input int Multiplier = 2;                        // Multiplier Loss Lot start
+input bool multiplierLossLotAdaptive = false;    // Multiplier Loss Lot Adaptive (c*c)
+input bool multiplierWinLotAdaptive = false;     // Multiplier Win Lot Adaptive (c*c)
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -74,11 +76,7 @@ int OnInit()
     if (shortCount > 1)
         CheckStartAndLastPriceShort();
 
-    if (!trade.SetExpertMagicNumber(MagicNumber))
-    {
-        Print("SetExpertMagicNumber() method failed. Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
-        return (INIT_FAILED);
-    }
+    trade.SetExpertMagicNumber(MagicNumber);
     return (INIT_SUCCEEDED);
 }
 
@@ -168,7 +166,7 @@ void LongGridExecute()
     {
         if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
         {
-            double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * longCount : lotSizeBuy;
+            double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * (multiplierWinLotAdaptive ? longCount * longCount : longCount) : lotSizeBuy;
             if (!trade.Buy(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
@@ -182,7 +180,7 @@ void LongGridExecute()
         }
         if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
         {
-            double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
+            double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * (multiplierLossLotAdaptive && longCount > 1 ? longCount : Multiplier) : lotSizeBuy;
 
             if (!trade.Buy(lotSizeAdaptive))
                 return;
@@ -204,7 +202,7 @@ void ShortGridExecute()
     {
         if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
         {
-            double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * shortCount : lotSizeSell;
+            double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * (multiplierWinLotAdaptive ? shortCount * shortCount : shortCount) : lotSizeSell;
             if (!trade.Sell(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
@@ -218,7 +216,7 @@ void ShortGridExecute()
         }
         if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
         {
-            double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
+            double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * (multiplierLossLotAdaptive && shortCount > 1 ? shortCount : Multiplier) : lotSizeSell;
 
             if (!trade.Sell(lotSizeAdaptive))
                 return;
