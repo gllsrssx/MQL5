@@ -23,6 +23,7 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
 input group "Grid";
+input int InpPeriod = 0;                         // Period (0=auto)
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
 input double TrailPercent = 0.25;                // Trail Percent
@@ -68,6 +69,10 @@ int OnInit()
     int barsWin = iBars(pair, WinTimeFrame);
     int barsLoss = iBars(pair, LossTimeFrame);
     Period = MathMin(barsPeriod, MathMin(barsWin, barsLoss));
+    if (InpPeriod > 0)
+    {
+        Period = InpPeriod;
+    }
 
     longCount = PositionCountLong();
     shortCount = PositionCountShort();
