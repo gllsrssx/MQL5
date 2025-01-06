@@ -26,13 +26,13 @@ input group "Grid";
 input int InpPeriod = 0;                         // Period (0=auto)
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
-input double TrailPercent = 0.25;                // Trail Percent
+input double TrailPercent = 0.5;                // Trail Percent
 input bool keepLastWinOpen = false;              // Keep Last Win Open
 input bool multiplierWinLot = false;             // Multiplier Win Lot
-input bool adaptiveLossGrid = true;              // Adaptive Loss Grid
+input bool adaptiveLossGrid = false;              // Adaptive Loss Grid
 input bool multiplierLossLot = false;            // Multiplier Loss Lot
 input int Multiplier = 2;                        // Multiplier Loss Lot start
-input bool multiplierLossLotAdaptive = false;    // Multiplier Loss Lot Adaptive (c*c)
+input bool multiplierLossLotAdaptive = true;    // Multiplier Loss Lot Adaptive (c*c)
 input bool multiplierWinLotAdaptive = false;     // Multiplier Win Lot Adaptive (c*c)
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
@@ -112,9 +112,10 @@ void OnTick()
 
     if (longCount == 0)
     {
-        lotSizeBuy = Volume();
-        if (!trade.Buy(lotSizeBuy))
+        double vol = Volume();
+        if (!trade.Buy(vol))
             return;
+        lotSizeBuy = vol;
         totalLotsTraded += lotSizeBuy;
         lastPriceLong = last;
         startPriceLong = last;
@@ -122,9 +123,10 @@ void OnTick()
     }
     if (shortCount == 0)
     {
-        lotSizeSell = Volume();
-        if (!trade.Sell(lotSizeSell))
+        double vol = Volume();
+        if (!trade.Sell(vol))
             return;
+        lotSizeSell = vol;
         totalLotsTraded += lotSizeSell;
         lastPriceShort = last;
         startPriceShort = last;
