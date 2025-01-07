@@ -8,7 +8,7 @@
 CTrade trade;
 
 input group "Risk";
-input double RiskValueAmount = 0.1; // Risk Amount
+input double RiskValueAmount = 0.25; // Risk Amount
 enum ENUM_RISK_VALUE
 {
     RISK_VALUE_LOT,
@@ -26,13 +26,13 @@ input group "Grid";
 input int InpPeriod = 0;                         // Period (0=auto)
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
-input double TrailPercent = 0.5;                // Trail Percent
-input bool keepLastWinOpen = false;              // Keep Last Win Open
+input double TrailPercent = 0.5;                 // Trail Percent
+input bool keepLastWinOpen = true;               // Keep Last Win Open
 input bool multiplierWinLot = false;             // Multiplier Win Lot
-input bool adaptiveLossGrid = false;              // Adaptive Loss Grid
-input bool multiplierLossLot = false;            // Multiplier Loss Lot
+input bool adaptiveLossGrid = false;             // Adaptive Loss Grid
+input bool multiplierLossLot = true;             // Multiplier Loss Lot
 input int Multiplier = 2;                        // Multiplier Loss Lot start
-input bool multiplierLossLotAdaptive = true;    // Multiplier Loss Lot Adaptive (c*c)
+input bool multiplierLossLotAdaptive = false;    // Multiplier Loss Lot Adaptive (c*c)
 input bool multiplierWinLotAdaptive = false;     // Multiplier Win Lot Adaptive (c*c)
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
@@ -87,6 +87,7 @@ int OnInit()
 
 void OnDeinit(const int reason)
 {
+    Print("Total lots traded: ", totalLotsTraded);
 }
 
 void OnTick()
