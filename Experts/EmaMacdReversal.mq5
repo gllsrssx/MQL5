@@ -13,7 +13,7 @@ input ENUM_TIMEFRAMES TimeFrame = PERIOD_D1; // Timeframe
 // atr inputs
 input int ATRPeriod = 5; // ATR period
 // ma inputs
-input int MAPeriod = 20;                        // EMA period
+input int MAPeriod = 20;                        // EMA period (0=off)
 input ENUM_MA_METHOD MAMethod = MODE_EMA;       // EMA method
 input ENUM_APPLIED_PRICE MAPrice = PRICE_CLOSE; // EMA price
 // macd inputs
