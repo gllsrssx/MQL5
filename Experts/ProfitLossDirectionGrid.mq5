@@ -184,7 +184,7 @@ void LongGridExecute()
         {
             double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * (multiplierWinLotAdaptive ? longCount * longCount : longCount) : lotSizeBuy;
             lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
-            Buy(lotSizeAdaptive))
+            if (!trade.Buy(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
                 TrailLong();
