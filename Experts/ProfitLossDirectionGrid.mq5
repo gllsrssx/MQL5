@@ -1,14 +1,14 @@
 
 #property copyright "Copyright 2024, GllsRssx Ltd."
 #property link "https://www.rssx.be"
-#property version "4.1"
+#property version "4.3"
 #property description "grid."
 
 #include <Trade\Trade.mqh>
 CTrade trade;
 
 input group "Risk";
-input double RiskValueAmount = 0.25; // Risk Amount
+input double RiskValueAmount = 0.1; // Risk Amount
 enum ENUM_RISK_VALUE
 {
     RISK_VALUE_LOT,
@@ -23,17 +23,25 @@ enum ENUM_RISK_TYPE
 };
 input ENUM_RISK_TYPE RiskType = RISK_TYPE_BALANCE; // Risk Type
 input group "Grid";
-input int InpPeriod = 0;                         // Period (0=auto)
-input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;  // Win Time Frame
-input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1; // Loss Time Frame
-input double TrailPercent = 0.5;                 // Trail Percent
-input bool keepLastWinOpen = true;               // Keep Last Win Open
-input bool multiplierWinLot = false;             // Multiplier Win Lot
-input bool adaptiveLossGrid = false;             // Adaptive Loss Grid
-input bool multiplierLossLot = true;             // Multiplier Loss Lot
-input int Multiplier = 2;                        // Multiplier Loss Lot start
-input bool multiplierLossLotAdaptive = false;    // Multiplier Loss Lot Adaptive (c*c)
-input bool multiplierWinLotAdaptive = false;     // Multiplier Win Lot Adaptive (c*c)
+input int InpPeriod = 0; // Period (0=auto)
+enum ENUM_RISK_TIMEFRAMES
+{
+    RISK_TIMEFRAMES_WIN, // Win Time Frame risk
+    RISK_TIMEFRAMES_LOSS // Loss Time Frame risk
+};
+input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;                  // Win Time Frame
+input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1;                 // Loss Time Frame
+input ENUM_RISK_TIMEFRAMES RiskTimeFrame = RISK_TIMEFRAMES_LOSS; // Risk Time Frame
+input double TrailPercent = 0.5;                                 // Trail Percent Win
+input bool keepLastWinOpen = true;                               // Keep Last Win Open
+input bool multiplierWinLot = false;                             // Multiplier Win Lot
+input bool multiplierLossLot = true;                             // Multiplier Loss Lot
+input bool adaptiveLossGrid = false;                             // Adaptive Loss Grid
+int Multiplier = 2;                                              // Multiplier Loss Lot start
+bool multiplierLossLotAdaptive = false;                          // Multiplier Loss Lot Adaptive (c*c)
+bool multiplierWinLotAdaptive = false;                           // Multiplier Win Lot Adaptive (c*c)
+input bool LongTrades = true;                                    // Long Trades
+input bool ShortTrades = true;                                   // Short Trades
 input group "Info";
 input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
@@ -101,7 +109,7 @@ void OnTick()
     WinGridDistance = WinAtr() + spread;
     LossGridDistance = LossAtr() + spread;
     TrailDistance = WinGridDistance * TrailPercent;
-    distance = WinGridDistance;
+    distance = RiskTimeFrame == RISK_TIMEFRAMES_WIN ? WinTimeFrame : LossTimeFrame;
     winMoney = CalculateWinMoney();
 
     MqlDateTime mdt;
@@ -111,7 +119,7 @@ void OnTick()
     if (hour < StartHour || hour > StopHour || (hour == StartHour && minute < startMinute) || (hour == StopHour && minute > StopMinute))
         return;
 
-    if (longCount == 0)
+    if (longCount == 0 && LongTrades)
     {
         double vol = Volume();
         if (!trade.Buy(vol))
@@ -122,7 +130,7 @@ void OnTick()
         startPriceLong = last;
         return;
     }
-    if (shortCount == 0)
+    if (shortCount == 0 && ShortTrades)
     {
         double vol = Volume();
         if (!trade.Sell(vol))
