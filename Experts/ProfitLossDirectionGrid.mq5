@@ -109,7 +109,7 @@ void OnTick()
     WinGridDistance = WinAtr() + spread;
     LossGridDistance = LossAtr() + spread;
     TrailDistance = WinGridDistance * TrailPercent;
-    distance = RiskTimeFrame == RISK_TIMEFRAMES_WIN ? WinTimeFrame : LossTimeFrame;
+    distance = RiskTimeFrame == RISK_TIMEFRAMES_WIN ? WinGridDistance : LossGridDistance;
     winMoney = CalculateWinMoney();
 
     MqlDateTime mdt;
@@ -183,7 +183,8 @@ void LongGridExecute()
         if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
         {
             double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * (multiplierWinLotAdaptive ? longCount * longCount : longCount) : lotSizeBuy;
-            if (!trade.Buy(lotSizeAdaptive))
+            lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
+            Buy(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
                 TrailLong();
@@ -197,7 +198,7 @@ void LongGridExecute()
         if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
         {
             double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * (multiplierLossLotAdaptive && longCount > 1 ? longCount : Multiplier) : lotSizeBuy;
-
+            lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             if (!trade.Buy(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
@@ -219,6 +220,7 @@ void ShortGridExecute()
         if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
         {
             double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * (multiplierWinLotAdaptive ? shortCount * shortCount : shortCount) : lotSizeSell;
+            lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             if (!trade.Sell(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
@@ -233,7 +235,7 @@ void ShortGridExecute()
         if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
         {
             double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * (multiplierLossLotAdaptive && shortCount > 1 ? shortCount : Multiplier) : lotSizeSell;
-
+            lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             if (!trade.Sell(lotSizeAdaptive))
                 return;
             if (!keepLastWinOpen)
