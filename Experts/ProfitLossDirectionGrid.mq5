@@ -8,7 +8,7 @@
 CTrade trade;
 
 input group "Risk";
-input double RiskValueAmount = 0.25; // Risk Amount
+input double RiskValueAmount = 0.1; // Risk Amount
 enum ENUM_RISK_VALUE
 {
     RISK_VALUE_LOT,
@@ -32,7 +32,7 @@ enum ENUM_RISK_TIMEFRAMES
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;                  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1;                 // Loss Time Frame
 input ENUM_RISK_TIMEFRAMES RiskTimeFrame = RISK_TIMEFRAMES_LOSS; // Risk Time Frame
-input double TrailPercent = 0.25;                                // Trail Percent Win
+input double TrailPercent = 0.5;                                 // Trail Percent Win
 input bool keepLastWinOpen = true;                               // Keep Last Win Open
 input bool multiplierWinLot = false;                             // Multiplier Win Lot
 input bool multiplierLossLot = true;                             // Multiplier Loss Lot
@@ -186,7 +186,7 @@ void LongGridExecute()
             lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             do
             {
-                if (!trade.Buy(lotSizeAdaptive > maxVol) ? maxVol : lotSizeAdaptive)
+                if (!trade.Buy(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
@@ -205,7 +205,7 @@ void LongGridExecute()
             lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             do
             {
-                if (!trade.Buy(lotSizeAdaptive > maxVol) ? maxVol : lotSizeAdaptive)
+                if (!trade.Buy(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
@@ -231,7 +231,7 @@ void ShortGridExecute()
             lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             do
             {
-                if (!trade.Sell(lotSizeAdaptive > maxVol) ? maxVol : lotSizeAdaptive)
+                if (!trade.Sell(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
@@ -250,7 +250,7 @@ void ShortGridExecute()
             lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
             do
             {
-                if (!trade.Sell(lotSizeAdaptive > maxVol) ? maxVol : lotSizeAdaptive)
+                if (!trade.Sell(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
