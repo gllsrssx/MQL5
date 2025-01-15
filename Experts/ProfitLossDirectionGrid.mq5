@@ -64,8 +64,8 @@ double lastPriceLong;
 double lastPriceShort;
 double startPriceLong;
 double startPriceShort;
-double profitLong = 0;
-double profitShort = 0;
+double profitLong;
+double profitShort;
 double distance;
 double lotSizeBuy;
 double lotSizeSell;
@@ -84,6 +84,8 @@ int OnInit()
 
     longCount = PositionCountLong();
     shortCount = PositionCountShort();
+    CheckProfitLong();
+    CheckProfitShort();
     if (longCount > 1)
         CheckStartAndLastPriceLong();
     if (shortCount > 1)
@@ -128,7 +130,6 @@ void OnTick()
         totalLotsTraded += lotSizeBuy;
         lastPriceLong = last;
         startPriceLong = last;
-        return;
     }
     if (shortCount == 0 && ShortTrades)
     {
@@ -139,8 +140,12 @@ void OnTick()
         totalLotsTraded += lotSizeSell;
         lastPriceShort = last;
         startPriceShort = last;
-        return;
     }
+
+    if(longCount > 1 && lastPriceLong == 0 && startPriceLong == 0)
+        CheckStartAndLastPriceLong();
+    if(shortCount > 1 && lastPriceShort == 0 && startPriceShort == 0)   
+        CheckStartAndLastPriceShort();
 
     if (longCount == 1)
         SetStartPriceLong();
@@ -158,22 +163,22 @@ void OnTick()
         ShortGridExecute();
     }
 
-    if (ClosedIfInProfitLong())
-        return;
-    if (ClosedIfInProfitShort())
-        return;
+    ClosedIfInProfitLong();
+    ClosedIfInProfitShort();
 
     if (IsChartComment)
-        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
-                "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
-                "\nwin distance: ", NormalizeDouble(WinGridDistance, Digits()),
-                " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
-                "\nLong: Count: ", longCount, " > Profit: ", NormalizeDouble(profitLong, 2),
-                " | Last Price: ", NormalizeDouble(lastPriceLong, Period()),
-                " | Start Price: ", NormalizeDouble(startPriceLong, Period()),
-                "\nShort: Count: ", shortCount, " > Profit: ", NormalizeDouble(profitShort, 2),
-                " | Last Price: ", NormalizeDouble(lastPriceShort, Period()),
-                " | Start Price: ", NormalizeDouble(startPriceShort, Period()));
+            Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
+                    "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
+                    "\nwin distance: ", NormalizeDouble(WinGridDistance, Digits()),
+                    " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
+                    "\nLong: Count: ", longCount, " > Profit: ", NormalizeDouble(profitLong, 2),
+                    " | Last Price: ", NormalizeDouble(lastPriceLong, Period()),
+                    " | Start Price: ", NormalizeDouble(startPriceLong, Period()),
+                    "\nShort: Count: ", shortCount, " > Profit: ", NormalizeDouble(profitShort, 2),
+                    " | Last Price: ", NormalizeDouble(lastPriceShort, Period()),
+                    " | Start Price: ", NormalizeDouble(startPriceShort, Period()));
+
+      
 }
 
 void LongGridExecute()
@@ -312,70 +317,41 @@ void SetStartPriceShort()
     }
 }
 
-bool ClosedIfInProfitLong()
+void ClosedIfInProfitLong()
 {
     if (!(longCount > 1 && last < startPriceLong))
-        return false;
-    bool closed = false;
-    double profit = 0;
-    for (int i = PositionsTotal() - 1; i >= 0; i--)
-    {
-        ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-            continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
-            continue;
-        profit += PositionGetDouble(POSITION_PROFIT);
-    }
-    if (profit > winMoney)
+        return;
+    CheckProfitLong();
+    if (profitLong > winMoney)
     {
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-                continue;
-            if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
                 continue;
             if (!trade.PositionClose(ticket))
                 Print("PositionClose() method failed. Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
-            closed = true;
         }
     }
-    profitLong = profit;
-    return closed;
 }
 
-bool ClosedIfInProfitShort()
+void ClosedIfInProfitShort()
 {
     if (!(shortCount > 1 && last > startPriceShort))
-        return false;
-    bool closed = false;
-    double profit = 0;
-    for (int i = PositionsTotal() - 1; i >= 0; i--)
-    {
-        ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-            continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
-            continue;
-        profit += PositionGetDouble(POSITION_PROFIT);
-    }
-    if (profit > winMoney)
+        return;
+    CheckProfitShort();
+    if (profitShort > winMoney)
     {
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
-                continue;
-            if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
                 continue;
             if (!trade.PositionClose(ticket))
                 Print("PositionClose() method failed. Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
             closed = true;
         }
     }
-    profitShort = profit;
-    return closed;
 }
 
 void TrailLong()
@@ -488,6 +464,18 @@ double CalculateWinMoney()
         return capital * RiskValueAmount * 0.01;
 }
 
+void CheckProfitLong(){
+    double profit = 0;
+    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+            continue;
+        profit += PositionGetDouble(POSITION_PROFIT);
+    }
+    profitLong = profit;
+}
+
 void CheckStartAndLastPriceLong()
 {
     double startPrice = profitLong > 0 ? INT_MAX : 0;
@@ -512,6 +500,20 @@ void CheckStartAndLastPriceLong()
             lastPrice = MathMin(lastPrice, openPrice);
         }
     }
+    Print("startPrice: ", startPrice, " | lastPrice: ", lastPrice, " | profitLong: ", profitLong);
+}
+
+void CheckProfitShort()
+{
+    double profit = 0;
+    for (int i = PositionsTotal() - 1; i >= 0; i--)
+    {
+        ulong ticket = PositionGetTicket(i);
+        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+            continue;
+        profit += PositionGetDouble(POSITION_PROFIT);
+    }
+    profitShort = profit;
 }
 
 void CheckStartAndLastPriceShort()
@@ -538,4 +540,5 @@ void CheckStartAndLastPriceShort()
             lastPrice = MathMax(lastPrice, openPrice);
         }
     }
+    Print("startPrice: ", startPrice, " | lastPrice: ", lastPrice, " | profitShort: ", profitShort);
 }
