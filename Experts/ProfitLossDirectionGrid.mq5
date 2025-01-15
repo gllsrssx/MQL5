@@ -188,11 +188,11 @@ void LongGridExecute()
             {
                 if (!trade.Buy(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
+                totalLotsTraded += lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
             if (!keepLastWinOpen)
                 TrailLong();
-            totalLotsTraded += lotSizeAdaptive;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -207,11 +207,11 @@ void LongGridExecute()
             {
                 if (!trade.Buy(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
+                totalLotsTraded += lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
             if (!keepLastWinOpen)
                 TrailLong();
-            totalLotsTraded += lotSizeAdaptive;
             lastPriceLong = last;
         }
         if (adaptiveLossGrid && longCount > 1)
@@ -233,11 +233,11 @@ void ShortGridExecute()
             {
                 if (!trade.Sell(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
+                totalLotsTraded += lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
             if (!keepLastWinOpen)
                 TrailShort();
-            totalLotsTraded += lotSizeAdaptive;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
@@ -252,11 +252,11 @@ void ShortGridExecute()
             {
                 if (!trade.Sell(lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive))
                     return;
+                totalLotsTraded += lotSizeAdaptive > maxVol ? maxVol : lotSizeAdaptive;
                 lotSizeAdaptive = MathFloor(lotSizeAdaptive - maxVol / lotStep) * lotStep;
             } while (lotSizeAdaptive > lotStep);
             if (!keepLastWinOpen)
                 TrailShort();
-            totalLotsTraded += lotSizeAdaptive;
             lastPriceShort = last;
         }
         if (adaptiveLossGrid && shortCount > 1)
