@@ -41,8 +41,9 @@ int Multiplier = 2;                                              // Multiplier L
 input bool LongTrades = true;                                    // Long Trades
 input bool ShortTrades = true;                                   // Short Trades
 input group "Info";
-input bool IsChartComment = true;  // Chart Comment
 input long MagicNumber = 88888888; // Magic Number
+input bool IsChartComment = true;  // Chart Comment
+input bool DebugConsole = true;    // Debug Console
 input group "Time";
 input int StartHour = 0;   // Start Hour
 input int startMinute = 6; // Start Minute
@@ -150,6 +151,11 @@ void OnTick()
         return;
     }
 
+    if (longCount == 1)
+        SetStartPriceLong();
+    if (shortCount == 1)
+        SetStartPriceShort();
+
     if (longCount > 1 && lastPriceLong == 0 && startPriceLong == 0)
     {
         CheckStartAndLastPriceLong();
@@ -161,29 +167,27 @@ void OnTick()
         return;
     }
 
-    if (longCount == 1)
-        SetStartPriceLong();
-    if (shortCount == 1)
-        SetStartPriceShort();
-
     if (longCount > 0)
     {
-        ClosedIfInProfitLong();
         TrailLong();
         LongGridExecute();
     }
     if (shortCount > 0)
     {
-        ClosedIfInProfitShort();
         TrailShort();
         ShortGridExecute();
     }
+
+    if (longCount > 1)
+        ClosedIfInProfitLong();
+    if (shortCount > 1)
+        ClosedIfInProfitShort();
 
     CheckProfitLong();
     CheckProfitShort();
 
     if (IsChartComment)
-        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
+        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2), " | Multiplier: ", Multiplier,
                 "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
                 "\nwin distance: ", NormalizeDouble(WinGridDistance, Digits()),
                 " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
@@ -202,6 +206,8 @@ void LongGridExecute()
     if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
     {
         double lotSizeAdaptive = multiplierWinLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
+        if (DebugConsole)
+            Print("lotSizeAdaptive: ", lotSizeAdaptive, " | lotSizeBuy: ", lotSizeBuy, " | longCount: ", longCount, " | Multiplier: ", Multiplier);
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -245,7 +251,9 @@ void ShortGridExecute()
         return;
     if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
     {
-        double lotSizeAdaptive = multiplierWinLot ? lotSizeSell * longCount * Multiplier : lotSizeSell;
+        double lotSizeAdaptive = multiplierWinLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
+        if (DebugConsole)
+            Print("lotSizeAdaptive: ", lotSizeAdaptive, " | lotSizeSell: ", lotSizeSell, " | shortCount: ", shortCount, " | Multiplier: ", Multiplier);
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -306,9 +314,9 @@ void SetStartPriceLong()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+        if (!PositionSelectByTicket(ticket))
             continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
             continue;
         startPriceLong = PositionGetDouble(POSITION_PRICE_OPEN);
         lastPriceLong = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -320,9 +328,9 @@ void SetStartPriceShort()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+        if (!PositionSelectByTicket(ticket))
             continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
             continue;
         startPriceShort = PositionGetDouble(POSITION_PRICE_OPEN);
         lastPriceShort = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -339,7 +347,9 @@ void ClosedIfInProfitLong()
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+            if (!PositionSelectByTicket(ticket))
+                continue;
+            if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
                 continue;
             if (!trade.PositionClose(ticket))
                 Print("PositionClose() method failed. Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
@@ -358,7 +368,9 @@ void ClosedIfInProfitShort()
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+            if (!PositionSelectByTicket(ticket))
+                continue;
+            if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
                 continue;
             if (!trade.PositionClose(ticket))
                 Print("PositionClose() method failed. Return code=", trade.ResultRetcode(), ". Code description: ", trade.ResultRetcodeDescription());
@@ -375,9 +387,9 @@ void TrailLong()
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+            if (!PositionSelectByTicket(ticket))
                 continue;
-            if (PositionGetDouble(POSITION_SL) == stop)
+            if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY || PositionGetDouble(POSITION_SL) == stop)
                 continue;
 
             if (!trade.PositionModify(ticket, stop, 0))
@@ -394,9 +406,9 @@ void TrailShort()
         for (int i = PositionsTotal() - 1; i >= 0; i--)
         {
             ulong ticket = PositionGetTicket(i);
-            if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+            if (!PositionSelectByTicket(ticket))
                 continue;
-            if (PositionGetDouble(POSITION_SL) == stop)
+            if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL || PositionGetDouble(POSITION_SL) == stop)
                 continue;
 
             if (!trade.PositionModify(ticket, stop, 0))
@@ -411,11 +423,10 @@ int PositionCountLong()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+        if (!PositionSelectByTicket(ticket))
             continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
             continue;
-
         count++;
     }
     return count;
@@ -427,11 +438,10 @@ int PositionCountShort()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber)
+        if (!PositionSelectByTicket(ticket))
             continue;
-        if (PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
             continue;
-
         count++;
     }
     return count;
@@ -479,7 +489,9 @@ void CheckProfitLong()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
             continue;
         profit += PositionGetDouble(POSITION_PROFIT);
     }
@@ -494,7 +506,9 @@ void CheckStartAndLastPriceLong()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_BUY)
             continue;
 
         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
@@ -519,7 +533,9 @@ void CheckProfitShort()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
             continue;
         profit += PositionGetDouble(POSITION_PROFIT);
     }
@@ -534,7 +550,9 @@ void CheckStartAndLastPriceShort()
     for (int i = PositionsTotal() - 1; i >= 0; i--)
     {
         ulong ticket = PositionGetTicket(i);
-        if (!PositionSelectByTicket(ticket) || PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
+        if (!PositionSelectByTicket(ticket))
+            continue;
+        if (PositionGetString(POSITION_SYMBOL) != pair || PositionGetInteger(POSITION_MAGIC) != MagicNumber || PositionGetInteger(POSITION_TYPE) != POSITION_TYPE_SELL)
             continue;
 
         double openPrice = PositionGetDouble(POSITION_PRICE_OPEN);
