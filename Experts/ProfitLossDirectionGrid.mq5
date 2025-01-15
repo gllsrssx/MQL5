@@ -201,7 +201,7 @@ void LongGridExecute()
         return;
     if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
     {
-        double lotSizeAdaptive = multiplierWinLot ? lotSizeBuy * longCount * (multiplierWinLotAdaptive && longCount > 1 ? longCount : Multiplier) : lotSizeBuy;
+        double lotSizeAdaptive = multiplierWinLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -220,7 +220,7 @@ void LongGridExecute()
     }
     if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * (multiplierLossLotAdaptive && longCount > 1 ? longCount : Multiplier) : lotSizeBuy;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
