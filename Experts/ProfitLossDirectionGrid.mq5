@@ -43,7 +43,7 @@ input bool ShortTrades = true;                                   // Short Trades
 input group "Info";
 input long MagicNumber = 88888888; // Magic Number
 input bool IsChartComment = true;  // Chart Comment
-input bool DebugConsole = true;    // Debug Console
+bool DebugConsole = false;         // Debug Console
 input group "Time";
 input int StartHour = 0;   // Start Hour
 input int startMinute = 6; // Start Minute
