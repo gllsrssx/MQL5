@@ -38,8 +38,6 @@ input bool multiplierWinLot = false;                             // Multiplier W
 input bool multiplierLossLot = true;                             // Multiplier Loss Lot
 input bool adaptiveLossGrid = false;                             // Adaptive Loss Grid
 int Multiplier = 2;                                              // Multiplier Loss Lot start
-bool multiplierLossLotAdaptive = false;                          // Multiplier Loss Lot Adaptive (c*c)
-bool multiplierWinLotAdaptive = false;                           // Multiplier Win Lot Adaptive (c*c)
 input bool LongTrades = true;                                    // Long Trades
 input bool ShortTrades = true;                                   // Short Trades
 input group "Info";
@@ -181,6 +179,9 @@ void OnTick()
         ShortGridExecute();
     }
 
+    CheckProfitLong();
+    CheckProfitShort();
+
     if (IsChartComment)
         Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2),
                 "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
@@ -200,7 +201,7 @@ void LongGridExecute()
         return;
     if (last > lastPriceLong + WinGridDistance && last > startPriceLong)
     {
-        double lotSizeAdaptive = multiplierWinLot && longCount > 1 ? lotSizeBuy * (multiplierWinLotAdaptive ? longCount * longCount : longCount) : lotSizeBuy;
+        double lotSizeAdaptive = multiplierWinLot ? lotSizeBuy * longCount * (multiplierWinLotAdaptive && longCount > 1 ? longCount : Multiplier) : lotSizeBuy;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -244,7 +245,7 @@ void ShortGridExecute()
         return;
     if (last < lastPriceShort - WinGridDistance && last < startPriceShort)
     {
-        double lotSizeAdaptive = multiplierWinLot && shortCount > 1 ? lotSizeSell * (multiplierWinLotAdaptive ? shortCount * shortCount : shortCount) : lotSizeSell;
+        double lotSizeAdaptive = multiplierWinLot ? lotSizeSell * longCount * Multiplier : lotSizeSell;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -263,7 +264,7 @@ void ShortGridExecute()
     }
     if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * (multiplierLossLotAdaptive && shortCount > 1 ? shortCount : Multiplier) : lotSizeSell;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
