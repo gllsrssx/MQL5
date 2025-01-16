@@ -32,14 +32,18 @@ enum ENUM_RISK_TIMEFRAMES
 input ENUM_TIMEFRAMES WinTimeFrame = PERIOD_D1;                  // Win Time Frame
 input ENUM_TIMEFRAMES LossTimeFrame = PERIOD_D1;                 // Loss Time Frame
 input ENUM_RISK_TIMEFRAMES RiskTimeFrame = RISK_TIMEFRAMES_LOSS; // Risk Time Frame
-input double TrailPercent = 0.5;                                 // Trail Percent Win
-input bool keepLastWinOpen = true;                               // Keep Last Win Open
-input bool multiplierWinLot = false;                             // Multiplier Win Lot
-input bool multiplierLossLot = true;                             // Multiplier Loss Lot
-input bool adaptiveLossGrid = false;                             // Adaptive Loss Grid
-int Multiplier = 2;                                              // Multiplier Loss Lot start
-input bool LongTrades = true;                                    // Long Trades
-input bool ShortTrades = true;                                   // Short Trades
+input group "Win Grid";
+input double TrailPercent = 0.5;     // Trail Percent Win
+input bool keepLastWinOpen = true;   // Keep Last Win Open
+input bool multiplierWinLot = false; // Multiplier Win Lot
+input group "Loss Grid";
+input bool multiplierLossLot = true;  // Multiplier Loss Lot
+input bool adaptiveLossGrid = false;  // Adaptive Loss Grid
+input bool closeLossGridInBE = false; // Close Loss Grid in BE
+int Multiplier = 2;                   // Multiplier Loss Lot start
+input group "Side";
+input bool LongTrades = true;  // Long Trades
+input bool ShortTrades = true; // Short Trades
 input group "Info";
 input long MagicNumber = 88888888; // Magic Number
 input bool IsChartComment = true;  // Chart Comment
@@ -119,7 +123,7 @@ void OnTick()
     }
     TrailDistance = WinGridDistance * TrailPercent;
     distance = RiskTimeFrame == RISK_TIMEFRAMES_WIN ? WinGridDistance : LossGridDistance;
-    winMoney = CalculateWinMoney();
+    winMoney = closeLossGridInBE ? 0 : CalculateWinMoney();
 
     MqlDateTime mdt;
     TimeCurrent(mdt);
