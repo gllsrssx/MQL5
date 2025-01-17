@@ -37,10 +37,11 @@ input double TrailPercent = 0.5;     // Trail Percent Win
 input bool keepLastWinOpen = true;   // Keep Last Win Open
 input bool multiplierWinLot = false; // Multiplier Win Lot
 input group "Loss Grid";
-input bool multiplierLossLot = true;  // Multiplier Loss Lot
-input bool adaptiveLossGrid = false;  // Adaptive Loss Grid
-input bool closeLossGridInBE = false; // Close Loss Grid in BE
-int Multiplier = 2;                   // Multiplier Loss Lot start
+input bool multiplierLossLot = true;           // Multiplier Loss Lot
+input bool adaptiveLossGrid = false;           // Adaptive Loss Grid
+input bool adaptiveLossGridMultiplier = false; // Adaptive Loss Grid Multiplier
+input bool closeLossGridInBE = false;          // Close Loss Grid in BE
+int Multiplier = 2;                            // Multiplier Loss Lot start
 input group "Side";
 input bool LongTrades = true;  // Long Trades
 input bool ShortTrades = true; // Short Trades
@@ -230,7 +231,7 @@ void LongGridExecute()
     }
     if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * (adaptiveLossGridMultiplier && longCount > 2 ? longCount : Multiplier) : lotSizeBuy;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -276,7 +277,7 @@ void ShortGridExecute()
     }
     if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * (adaptiveLossGridMultiplier && shortCount > 2 ? shortCount : Multiplier) : lotSizeSell;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -484,7 +485,7 @@ double CalculateWinMoney()
     if (RiskValue == RISK_VALUE_LOT)
         return (RiskValueAmount / lotStep) * moneyLotStep;
     else
-        return capital * RiskValueAmount * 0.01;
+        return (Volume() / lotStep) * moneyLotStep; // capital * RiskValueAmount * 0.01;
 }
 
 void CheckProfitLong()
