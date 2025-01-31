@@ -39,7 +39,6 @@ input bool multiplierWinLot = false; // Multiplier Win Lot
 input group "Loss Grid";
 input bool multiplierLossLot = true;           // Multiplier Loss Lot
 input bool adaptiveLossGrid = false;           // Adaptive Loss Grid
-input bool adaptiveLossGridMultiplier = false; // Adaptive Loss Grid Multiplier
 input bool closeLossGridInBE = false;          // Close Loss Grid in BE
 int Multiplier = 2;                            // Multiplier Loss Lot start
 input group "Side";
@@ -54,6 +53,10 @@ input int StartHour = 0;   // Start Hour
 input int startMinute = 6; // Start Minute
 input int StopHour = 23;   // Stop Hour
 input int StopMinute = 54; // Stop Minute
+input group "EMA";
+input bool EmaFilter = true; // use ema filter
+input int EmaPeriod = 100; // ema period
+input ENUM_TIMEFRAMES EmaTimeframe = PERIOD_D1; // ema timeframe 
 
 int Period;              // Period
 double WinGridDistance;  // Win Grid Distance
@@ -125,6 +128,7 @@ void OnTick()
     TrailDistance = WinGridDistance * TrailPercent;
     distance = RiskTimeFrame == RISK_TIMEFRAMES_WIN ? WinGridDistance : LossGridDistance;
     winMoney = closeLossGridInBE ? 0 : CalculateWinMoney();
+    int direction = GetEMADirection();
 
     MqlDateTime mdt;
     TimeCurrent(mdt);
@@ -133,7 +137,7 @@ void OnTick()
     if (hour < StartHour || hour > StopHour || (hour == StartHour && minute < startMinute) || (hour == StopHour && minute > StopMinute))
         return;
 
-    if (longCount == 0 && LongTrades)
+    if (longCount == 0 && LongTrades && direction != -1)
     {
         double vol = Volume();
         if (!trade.Buy(vol))
@@ -144,7 +148,7 @@ void OnTick()
         startPriceLong = last;
         return;
     }
-    if (shortCount == 0 && ShortTrades)
+    if (shortCount == 0 && ShortTrades && direction != 1)
     {
         double vol = Volume();
         if (!trade.Sell(vol))
@@ -192,7 +196,7 @@ void OnTick()
     CheckProfitShort();
 
     if (IsChartComment)
-        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2), " | Multiplier: ", Multiplier,
+        Comment("\nWin Money: ", NormalizeDouble(winMoney, 2), " | lots traded: ", NormalizeDouble(totalLotsTraded, 2), " | Multiplier: ", Multiplier, " | Direction: ", direction,
                 "\nPeriod: ", Period, " | Win ATR: ", NormalizeDouble(WinAtr(), Digits()), " | Loss ATR: ", NormalizeDouble(LossAtr(), Digits()),
                 "\nwin distance: ", NormalizeDouble(WinGridDistance, Digits()),
                 " | loss distance: ", NormalizeDouble(LossGridDistance, Digits()),
@@ -202,6 +206,43 @@ void OnTick()
                 "\nShort: Count: ", shortCount, " > Profit: ", NormalizeDouble(profitShort, 2),
                 " | Last Price: ", NormalizeDouble(lastPriceShort, Period()),
                 " | Start Price: ", NormalizeDouble(startPriceShort, Period()));
+}
+
+int GetEMADirection()
+{
+   if (!EmaFilter) return 0;
+   
+    double emaValues[];
+    double closePrices[];
+    int direction = 0;
+    
+    // Resize arrays
+    ArraySetAsSeries(emaValues, true);
+    ArraySetAsSeries(closePrices, true);
+    
+    // Get EMA values
+    if (iMA(Symbol(), EmaTimeframe, EmaPeriod, 0, MODE_EMA, PRICE_CLOSE) == INVALID_HANDLE)
+        return 0;
+    
+    CopyBuffer(iMA(Symbol(), EmaTimeframe, EmaPeriod, 0, MODE_EMA, PRICE_CLOSE), 0, 0, EmaPeriod, emaValues);
+    CopyClose(Symbol(), PERIOD_CURRENT, 0, EmaPeriod, closePrices);
+    
+    // Check if price is above or below EMA for the full period
+    bool above = true, below = true;
+    for (int i = 0; i < EmaPeriod; i++)
+    {
+        if (closePrices[i] <= emaValues[i])
+            above = false;
+        if (closePrices[i] >= emaValues[i])
+            below = false;
+    }
+    
+    if (above)
+        direction = 1;
+    else if (below)
+        direction = -1;
+    
+    return direction;
 }
 
 void LongGridExecute()
@@ -231,7 +272,7 @@ void LongGridExecute()
     }
     if (last < lastPriceLong - LossGridDistance && last < startPriceLong)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * (adaptiveLossGridMultiplier && longCount > 2 ? longCount : Multiplier) : lotSizeBuy;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeBuy * longCount * Multiplier : lotSizeBuy;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
@@ -277,7 +318,7 @@ void ShortGridExecute()
     }
     if (last > lastPriceShort + LossGridDistance && last > startPriceShort)
     {
-        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * (adaptiveLossGridMultiplier && shortCount > 2 ? shortCount : Multiplier) : lotSizeSell;
+        double lotSizeAdaptive = multiplierLossLot ? lotSizeSell * shortCount * Multiplier : lotSizeSell;
         lotSizeAdaptive = MathFloor(lotSizeAdaptive / lotStep) * lotStep;
         do
         {
